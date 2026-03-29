@@ -1,4 +1,5 @@
 import os
+import urllib.parse
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from models import db, Lot, StockEntry, WeightAdjustment
 from datetime import datetime, date
@@ -9,18 +10,36 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'bags-erp-secret-2026')
 
 # Use DATABASE_URL env var in production (PostgreSQL), fallback to SQLite locally
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///bags_stock.db')
-# Fix older postgres:// URLs (Heroku/Railway/Neon style)
+# Fix older postgres:// URLs
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
+# Remove channel_binding param — not supported by psycopg2
+if 'channel_binding' in database_url:
+    parsed = urllib.parse.urlparse(database_url)
+    params = urllib.parse.parse_qs(parsed.query)
+    params.pop('channel_binding', None)
+    new_query = urllib.parse.urlencode({k: v[0] for k, v in params.items()})
+    database_url = urllib.parse.urlunparse(parsed._replace(query=new_query))
+
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# PostgreSQL SSL + connection pool settings for serverless
+if database_url.startswith('postgresql'):
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'connect_args': {'sslmode': 'require'}
+    }
 
 db.init_app(app)
 
 BAG_WEIGHTS = [20.0, 24.5, 25.0, 40.0, 49.0, 50.0]
 
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+    except Exception as e:
+        print(f'DB init error: {e}')
 
 
 # ─────────────────────────── DASHBOARD ───────────────────────────
