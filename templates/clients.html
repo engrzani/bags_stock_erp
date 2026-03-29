@@ -83,8 +83,8 @@
             <td>{{ client.contact_person or '—' }}</td>
             <td>{{ client.phone or '—' }}</td>
             <td>{{ client.city or '—' }}</td>
-            <td class="text-center fw-semibold">{{ "{:,}".format(client.total_bags_received()) }}</td>
-            <td class="text-end fw-semibold">{{ "{:,.1f}".format(client.total_weight_received()) }}</td>
+            <td class="text-center fw-semibold">{{ "{:,}".format(client.total_bags_received) }}</td>
+            <td class="text-end fw-semibold">{{ "{:,.1f}".format(client.total_weight_received) }}</td>
             <td class="text-center">
               <div class="d-flex gap-1 justify-content-center">
                 <a href="{{ url_for('client_detail', client_id=client.id) }}" class="btn btn-sm btn-outline-info" title="Details">

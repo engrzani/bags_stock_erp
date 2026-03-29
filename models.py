@@ -44,9 +44,11 @@ class Client(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     dispatches = db.relationship('StockDispatch', backref='client', lazy=True)
 
+    @property
     def total_bags_received(self):
         return sum(d.bags_dispatched for d in self.dispatches)
 
+    @property
     def total_weight_received(self):
         return round(sum(d.total_weight for d in self.dispatches), 2)
 
