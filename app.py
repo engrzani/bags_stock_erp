@@ -540,7 +540,8 @@ def requirements():
     pending = [r for r in all_reqs if r.status == 'pending']
     in_progress = [r for r in all_reqs if r.status == 'in_progress']
     return render_template('requirements.html', requirements=all_reqs,
-                           pending_count=len(pending), in_progress_count=len(in_progress))
+                           pending_count=len(pending), in_progress_count=len(in_progress),
+                           today=date.today())
 
 
 @app.route('/requirements/add', methods=['GET', 'POST'])

@@ -102,7 +102,6 @@
             <td class="text-center fw-semibold">{{ "{:,}".format(r.quantity_required) }}</td>
             <td>
               {% if r.due_date %}
-                {% set today_date = today_date if today_date is defined else none %}
                 <span class="{% if r.status not in ['fulfilled','cancelled'] and r.due_date < today %}text-danger fw-semibold{% endif %}">
                   {{ r.due_date.strftime('%d %b %Y') }}
                 </span>
