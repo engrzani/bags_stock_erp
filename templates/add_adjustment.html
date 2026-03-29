@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% block title %}Add Adjustment — Bags Stock ERP{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('adjustments') }}" class="breadcrumb-link">Adjustments</a>
+<i class="bi bi-chevron-right mx-1"></i>
+<span class="breadcrumb-current">New Adjustment</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">New Weight Adjustment</h1>
+    <p class="page-subtitle">Reduce bag weights for a specific stock entry (e.g. 25kg → 24.5kg)</p>
+  </div>
+  <a href="{{ url_for('adjustments') }}" class="btn btn-outline-secondary btn-action">
+    <i class="bi bi-arrow-left me-2"></i>Back
+  </a>
+</div>
+
+<!-- Info Banner -->
+<div class="info-banner mb-4">
+  <div class="info-banner-icon"><i class="bi bi-lightbulb-fill"></i></div>
+  <div class="info-banner-text">
+    <strong>How this works:</strong> Select the stock entry you want to adjust. Enter how many bags
+    need weight change and the new weight. If only SOME bags are adjusted, the entry will be split
+    automatically into two records.
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card-custom">
+      <div class="card-custom-header">
+        <h5 class="card-custom-title">
+          <i class="bi bi-arrow-left-right me-2 text-warning"></i>Adjustment Details
+        </h5>
+      </div>
+      <div class="card-custom-body">
+        <form method="POST" action="{{ url_for('add_adjustment') }}">
+
+          <!-- Stock Entry Selection -->
+          <div class="form-group-custom">
+            <label class="form-label-custom">Select Stock Entry <span class="text-danger">*</span></label>
+            {% if entries %}
+            <select name="entry_id" id="entrySelect" class="form-select form-control-custom" required>
+              <option value="" disabled selected>-- Choose Stock Entry --</option>
+              {% for entry in entries %}
+              <option value="{{ entry.id }}"
+                      data-weight="{{ entry.current_weight }}"
+                      data-qty="{{ entry.quantity }}"
+                      data-type="{{ entry.bag_type }}"
+                      data-lot="{{ entry.lot.lot_number }}">
+                [{{ entry.lot.lot_number }}] {{ entry.bag_type }} — {{ entry.current_weight }}kg × {{ entry.quantity }} bags
+              </option>
+              {% endfor %}
+            </select>
+            {% else %}
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              No stock entries found. <a href="{{ url_for('add_stock') }}">Add stock first</a>.
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Entry Info -->
+          <div class="entry-info-box" id="entryInfoBox" style="display:none">
+            <div class="entry-info-row">
+              <span>Lot:</span><strong id="infoLot">—</strong>
+            </div>
+            <div class="entry-info-row">
+              <span>Bag Type:</span><strong id="infoBagType">—</strong>
+            </div>
+            <div class="entry-info-row">
+              <span>Current Weight:</span><strong id="infoWeight">—</strong>
+            </div>
+            <div class="entry-info-row">
+              <span>Total Bags:</span><strong id="infoQty">—</strong>
+            </div>
+          </div>
+
+          <!-- Number of Bags -->
+          <div class="form-group-custom">
+            <label class="form-label-custom">Number of Bags to Adjust <span class="text-danger">*</span></label>
+            <input type="number" name="bags_adjusted" id="bagsAdjusted"
+                   class="form-control form-control-custom"
+                   min="1" placeholder="e.g. 100" required>
+            <small class="form-hint" id="bagsHint">Cannot exceed total bags in selected entry</small>
+          </div>
+
+          <!-- New Weight -->
+          <div class="form-group-custom">
+            <label class="form-label-custom">New Weight per Bag (kg) <span class="text-danger">*</span></label>
+            <div class="weight-selector">
+              {% for w in bag_weights %}
+              <button type="button" class="weight-btn" data-weight="{{ w }}" data-target="new_weight">
+                {{ w }} kg
+              </button>
+              {% endfor %}
+            </div>
+            <input type="number" name="new_weight" id="new_weight"
+                   class="form-control form-control-custom mt-2"
+                   step="0.1" min="0.1" placeholder="Or type custom weight..." required>
+          </div>
+
+          <!-- Live Result Preview -->
+          <div class="calc-preview" id="adjPreview" style="display:none">
+            <div class="calc-row">
+              <span>Bags adjusted:</span><strong id="previewBags">—</strong>
+            </div>
+            <div class="calc-row">
+              <span>Old weight:</span><strong id="previewOld">—</strong>
+            </div>
+            <div class="calc-row">
+              <span>New weight:</span><strong id="previewNew">—</strong>
+            </div>
+            <div class="calc-row total-row text-success">
+              <span>Total weight saved:</span><strong id="previewSaved">—</strong>
+            </div>
+          </div>
+
+          <!-- Reason -->
+          <div class="form-group-custom">
+            <label class="form-label-custom">Reason</label>
+            <input type="text" name="reason" class="form-control form-control-custom"
+                   placeholder="e.g. Lot adjustment — 100 bags reduced from 25kg to 24.5kg">
+          </div>
+
+          <!-- Date -->
+          <div class="form-group-custom">
+            <label class="form-label-custom">Adjustment Date <span class="text-danger">*</span></label>
+            <input type="date" name="date_adjusted" class="form-control form-control-custom"
+                   value="{{ today }}" required>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-warning btn-lg px-5 text-dark fw-semibold"
+                    {% if not entries %}disabled{% endif %}>
+              <i class="bi bi-check-circle me-2"></i>Apply Adjustment
+            </button>
+            <a href="{{ url_for('adjustments') }}" class="btn btn-light btn-lg px-4">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentEntryWeight = 0;
+let currentEntryQty = 0;
+
+const entrySelect = document.getElementById('entrySelect');
+const bagsInput   = document.getElementById('bagsAdjusted');
+const newWtInput  = document.getElementById('new_weight');
+
+entrySelect.addEventListener('change', function() {
+  const opt = this.options[this.selectedIndex];
+  currentEntryWeight = parseFloat(opt.dataset.weight);
+  currentEntryQty    = parseInt(opt.dataset.qty);
+  document.getElementById('infoLot').textContent     = opt.dataset.lot;
+  document.getElementById('infoBagType').textContent = opt.dataset.type;
+  document.getElementById('infoWeight').textContent  = currentEntryWeight + ' kg';
+  document.getElementById('infoQty').textContent     = parseInt(opt.dataset.qty).toLocaleString() + ' bags';
+  document.getElementById('bagsHint').textContent    = `Max: ${parseInt(opt.dataset.qty).toLocaleString()} bags`;
+  bagsInput.max = currentEntryQty;
+  document.getElementById('entryInfoBox').style.display = 'flex';
+  updatePreview();
+});
+
+document.querySelectorAll('.weight-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    newWtInput.value = btn.dataset.weight;
+    btn.closest('.weight-selector').querySelectorAll('.weight-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updatePreview();
+  });
+});
+
+function updatePreview() {
+  const bags   = parseInt(bagsInput.value) || 0;
+  const newWt  = parseFloat(newWtInput.value) || 0;
+  const preview = document.getElementById('adjPreview');
+  if (bags > 0 && newWt > 0 && currentEntryWeight > 0) {
+    const saved = (currentEntryWeight - newWt) * bags;
+    document.getElementById('previewBags').textContent = bags.toLocaleString() + ' bags';
+    document.getElementById('previewOld').textContent  = currentEntryWeight + ' kg';
+    document.getElementById('previewNew').textContent  = newWt + ' kg';
+    document.getElementById('previewSaved').textContent = saved.toLocaleString('en', {minimumFractionDigits:2}) + ' kg';
+    preview.style.display = 'flex';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+bagsInput.addEventListener('input', updatePreview);
+newWtInput.addEventListener('input', updatePreview);
+</script>
+{% endblock %}

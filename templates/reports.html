@@ -1,0 +1,237 @@
+{% extends 'base.html' %}
+{% block title %}Reports — Bags Stock ERP{% endblock %}
+{% block breadcrumb %}<i class="bi bi-bar-chart-fill me-1"></i> Reports{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Reports & Analytics</h1>
+    <p class="page-subtitle">Complete stock summary and weight analysis</p>
+  </div>
+  <button class="btn btn-outline-secondary btn-action" onclick="window.print()">
+    <i class="bi bi-printer me-2"></i>Print Report
+  </button>
+</div>
+
+<!-- Summary KPIs -->
+<div class="row g-4 mb-4">
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card kpi-blue">
+      <div class="kpi-icon"><i class="bi bi-bag-fill"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value">{{ "{:,}".format(total_bags) }}</div>
+        <div class="kpi-label">Total Bags</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card kpi-green">
+      <div class="kpi-icon"><i class="bi bi-speedometer"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value">{{ "{:,.1f}".format(total_weight) }}</div>
+        <div class="kpi-label">Total Weight (kg)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card kpi-orange">
+      <div class="kpi-icon"><i class="bi bi-arrow-left-right"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value">{{ total_adj }}</div>
+        <div class="kpi-label">Adjustments</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card kpi-purple">
+      <div class="kpi-icon"><i class="bi bi-piggy-bank-fill"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value">{{ "{:,.1f}".format(weight_saved) }}</div>
+        <div class="kpi-label">Weight Reduced (kg)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- Chart -->
+  <div class="col-lg-5">
+    <div class="card-custom h-100">
+      <div class="card-custom-header">
+        <h5 class="card-custom-title">
+          <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Bags by Weight Category
+        </h5>
+      </div>
+      <div class="card-custom-body">
+        {% if by_weight %}
+        <canvas id="barChart" height="280"></canvas>
+        {% else %}
+        <div class="empty-state-sm"><i class="bi bi-bar-chart"></i><p>No data yet</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- By Weight Table -->
+  <div class="col-lg-7">
+    <div class="card-custom h-100">
+      <div class="card-custom-header">
+        <h5 class="card-custom-title">
+          <i class="bi bi-table me-2 text-success"></i>Stock by Weight Category
+        </h5>
+      </div>
+      <div class="card-custom-body p-0">
+        {% if by_weight %}
+        <div class="table-responsive">
+          <table class="table table-custom mb-0">
+            <thead>
+              <tr>
+                <th>Weight</th>
+                <th class="text-center">Total Bags</th>
+                <th class="text-end">Total Weight (kg)</th>
+                <th class="text-end">Avg/Bag (kg)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in by_weight %}
+              <tr>
+                <td><span class="weight-badge">{{ row.current_weight }} kg</span></td>
+                <td class="text-center fw-semibold">{{ "{:,}".format(row.total_qty) }}</td>
+                <td class="text-end">{{ "{:,.2f}".format(row.total_wt) }}</td>
+                <td class="text-end">{{ "%.2f"|format(row.total_wt / row.total_qty) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr class="table-total-row">
+                <td><strong>TOTAL</strong></td>
+                <td class="text-center"><strong>{{ "{:,}".format(total_bags) }}</strong></td>
+                <td class="text-end"><strong>{{ "{:,.2f}".format(total_weight) }}</strong></td>
+                <td class="text-end"><strong>
+                  {{ "%.2f"|format(total_weight / total_bags) if total_bags > 0 else '0.00' }}
+                </strong></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state-sm">
+          <i class="bi bi-inbox"></i><p>No entries yet</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- By Lot Report -->
+<div class="card-custom">
+  <div class="card-custom-header">
+    <h5 class="card-custom-title">
+      <i class="bi bi-collection-fill me-2 text-warning"></i>Stock Report by Lot
+    </h5>
+  </div>
+  <div class="card-custom-body p-0">
+    {% if lots_data %}
+    <div class="table-responsive">
+      <table class="table table-custom mb-0">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Lot Number</th>
+            <th>Supplier</th>
+            <th>Date Received</th>
+            <th class="text-center">Entries</th>
+            <th class="text-center">Total Bags</th>
+            <th class="text-end">Total Weight (kg)</th>
+            <th class="text-end">Avg Weight/Bag</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lot in lots_data %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>
+              <a href="{{ url_for('lot_detail', lot_id=lot.id) }}" class="lot-link fw-semibold">
+                {{ lot.lot_number }}
+              </a>
+            </td>
+            <td>{{ lot.supplier or '—' }}</td>
+            <td>{{ lot.date_received.strftime('%d %b %Y') }}</td>
+            <td class="text-center">{{ lot.entries | length }}</td>
+            <td class="text-center fw-semibold">{{ "{:,}".format(lot.total_bags()) }}</td>
+            <td class="text-end">{{ "{:,.2f}".format(lot.total_weight()) }}</td>
+            <td class="text-end">
+              {{ "%.2f"|format(lot.total_weight() / lot.total_bags()) if lot.total_bags() > 0 else '—' }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="table-total-row">
+            <td colspan="5"><strong>GRAND TOTAL</strong></td>
+            <td class="text-center"><strong>{{ "{:,}".format(total_bags) }}</strong></td>
+            <td class="text-end"><strong>{{ "{:,.2f}".format(total_weight) }} kg</strong></td>
+            <td class="text-end"><strong>
+              {{ "%.2f"|format(total_weight / total_bags) if total_bags > 0 else '0.00' }}
+            </strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="bi bi-collection"></i>
+      <h5>No Lots Yet</h5>
+      <p>Create lots and add stock to generate reports.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if by_weight %}
+const labels = [{% for r in by_weight %}"{{ r.current_weight }} kg"{% if not loop.last %},{% endif %}{% endfor %}];
+const data   = [{% for r in by_weight %}{{ r.total_qty }}{% if not loop.last %},{% endif %}{% endfor %}];
+const colors = ['#4361ee','#06d6a0','#fb8500','#8338ec','#ef233c','#118ab2','#ffd166'];
+
+new Chart(document.getElementById('barChart').getContext('2d'), {
+  type: 'bar',
+  data: {
+    labels: labels,
+    datasets: [{
+      label: 'Bags',
+      data: data,
+      backgroundColor: colors.slice(0, labels.length),
+      borderRadius: 8,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.parsed.y.toLocaleString()} bags`
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: { color: 'rgba(0,0,0,0.05)' },
+        ticks: { font: { family: 'Inter' } }
+      },
+      x: {
+        grid: { display: false },
+        ticks: { font: { family: 'Inter', weight: '600' } }
+      }
+    }
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

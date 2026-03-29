@@ -1,0 +1,301 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard — Bags Stock ERP{% endblock %}
+
+{% block breadcrumb %}
+<i class="bi bi-speedometer2 me-1"></i> Dashboard
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-subtitle">Real-time overview of your stock inventory</p>
+  </div>
+  <div class="page-actions">
+    <a href="{{ url_for('add_stock') }}" class="btn btn-primary btn-action">
+      <i class="bi bi-plus-circle-fill me-2"></i>Add Stock
+    </a>
+    <a href="{{ url_for('add_lot') }}" class="btn btn-outline-primary btn-action">
+      <i class="bi bi-collection me-2"></i>New Lot
+    </a>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-4 mb-4">
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card kpi-blue">
+      <div class="kpi-icon"><i class="bi bi-bag-fill"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value">{{ "{:,}".format(total_bags) }}</div>
+        <div class="kpi-label">Total Bags</div>
+      </div>
+      <div class="kpi-footer">
+        <i class="bi bi-arrow-up-circle me-1"></i>All Stock
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card kpi-green">
+      <div class="kpi-icon"><i class="bi bi-speedometer"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value">{{ "{:,.1f}".format(total_weight) }}</div>
+        <div class="kpi-label">Total Weight (kg)</div>
+      </div>
+      <div class="kpi-footer">
+        <i class="bi bi-bar-chart me-1"></i>Gross Weight
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card kpi-orange">
+      <div class="kpi-icon"><i class="bi bi-collection-fill"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value">{{ total_lots }}</div>
+        <div class="kpi-label">Total Lots</div>
+      </div>
+      <div class="kpi-footer">
+        <i class="bi bi-layers me-1"></i>Active Lots
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card kpi-purple">
+      <div class="kpi-icon"><i class="bi bi-arrow-left-right"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value">{{ total_adjustments }}</div>
+        <div class="kpi-label">Adjustments Done</div>
+      </div>
+      <div class="kpi-footer">
+        <i class="bi bi-check-circle me-1"></i>Weight Changes
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+  <!-- Weight Category Chart -->
+  <div class="col-xl-5 col-lg-6">
+    <div class="card-custom">
+      <div class="card-custom-header">
+        <h5 class="card-custom-title">
+          <i class="bi bi-pie-chart-fill me-2 text-primary"></i>Stock by Weight (kg)
+        </h5>
+      </div>
+      <div class="card-custom-body">
+        {% if weight_breakdown %}
+        <div class="chart-wrapper">
+          <canvas id="weightPieChart"></canvas>
+        </div>
+        {% else %}
+        <div class="empty-state-sm">
+          <i class="bi bi-pie-chart"></i>
+          <p>No data yet</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Weight Breakdown Table -->
+  <div class="col-xl-7 col-lg-6">
+    <div class="card-custom">
+      <div class="card-custom-header">
+        <h5 class="card-custom-title">
+          <i class="bi bi-table me-2 text-success"></i>Stock Breakdown by Category
+        </h5>
+        <a href="{{ url_for('reports') }}" class="btn btn-sm btn-light">Full Report</a>
+      </div>
+      <div class="card-custom-body p-0">
+        {% if weight_breakdown %}
+        <div class="table-responsive">
+          <table class="table table-custom mb-0">
+            <thead>
+              <tr>
+                <th>Weight</th>
+                <th class="text-center">Total Bags</th>
+                <th class="text-end">Total Weight (kg)</th>
+                <th class="text-end">% of Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% set grand_total = weight_breakdown | sum(attribute='total_qty') %}
+              {% for row in weight_breakdown %}
+              <tr>
+                <td>
+                  <span class="weight-badge">{{ row.current_weight }} kg</span>
+                </td>
+                <td class="text-center fw-semibold">{{ "{:,}".format(row.total_qty) }}</td>
+                <td class="text-end">{{ "{:,.1f}".format(row.total_wt) }}</td>
+                <td class="text-end">
+                  {% set pct = (row.total_qty / grand_total * 100) if grand_total > 0 else 0 %}
+                  <div class="progress-wrapper">
+                    <span>{{ "%.1f"|format(pct) }}%</span>
+                    <div class="progress mini-progress">
+                      <div class="progress-bar" style="width:{{ pct }}%"></div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr class="table-total-row">
+                <td><strong>TOTAL</strong></td>
+                <td class="text-center"><strong>{{ "{:,}".format(total_bags) }}</strong></td>
+                <td class="text-end"><strong>{{ "{:,.1f}".format(total_weight) }}</strong></td>
+                <td class="text-end"><strong>100%</strong></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state-sm">
+          <i class="bi bi-inbox"></i>
+          <p>No stock entries yet. <a href="{{ url_for('add_stock') }}">Add stock now</a></p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row g-4">
+  <!-- Recent Lots -->
+  <div class="col-xl-6">
+    <div class="card-custom">
+      <div class="card-custom-header">
+        <h5 class="card-custom-title">
+          <i class="bi bi-clock-history me-2 text-warning"></i>Recent Lots
+        </h5>
+        <a href="{{ url_for('lots') }}" class="btn btn-sm btn-light">View All</a>
+      </div>
+      <div class="card-custom-body p-0">
+        {% if recent_lots %}
+        <div class="table-responsive">
+          <table class="table table-custom mb-0">
+            <thead>
+              <tr>
+                <th>Lot #</th>
+                <th>Supplier</th>
+                <th class="text-center">Bags</th>
+                <th class="text-end">Weight (kg)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for lot in recent_lots %}
+              <tr>
+                <td>
+                  <a href="{{ url_for('lot_detail', lot_id=lot.id) }}" class="lot-link">
+                    <i class="bi bi-collection me-1"></i>{{ lot.lot_number }}
+                  </a>
+                </td>
+                <td class="text-muted">{{ lot.supplier or '—' }}</td>
+                <td class="text-center">{{ "{:,}".format(lot.total_bags()) }}</td>
+                <td class="text-end">{{ "{:,.1f}".format(lot.total_weight()) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state-sm">
+          <i class="bi bi-collection"></i>
+          <p>No lots yet. <a href="{{ url_for('add_lot') }}">Create a lot</a></p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Stock Entries -->
+  <div class="col-xl-6">
+    <div class="card-custom">
+      <div class="card-custom-header">
+        <h5 class="card-custom-title">
+          <i class="bi bi-boxes me-2 text-info"></i>Recent Stock Entries
+        </h5>
+        <a href="{{ url_for('stock_list') }}" class="btn btn-sm btn-light">View All</a>
+      </div>
+      <div class="card-custom-body p-0">
+        {% if recent_entries %}
+        <div class="table-responsive">
+          <table class="table table-custom mb-0">
+            <thead>
+              <tr>
+                <th>Bag Type</th>
+                <th>Lot</th>
+                <th class="text-center">Qty</th>
+                <th class="text-end">Weight/Bag</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in recent_entries %}
+              <tr>
+                <td class="fw-medium">{{ entry.bag_type }}</td>
+                <td>
+                  <span class="badge bg-light text-dark border">{{ entry.lot.lot_number }}</span>
+                </td>
+                <td class="text-center">{{ "{:,}".format(entry.quantity) }}</td>
+                <td class="text-end">
+                  <span class="weight-badge">{{ entry.current_weight }} kg</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state-sm">
+          <i class="bi bi-bag"></i>
+          <p>No entries yet. <a href="{{ url_for('add_stock') }}">Add stock</a></p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if weight_breakdown %}
+const pieLabels = [{% for r in weight_breakdown %}"{{ r.current_weight }} kg"{% if not loop.last %},{% endif %}{% endfor %}];
+const pieData   = [{% for r in weight_breakdown %}{{ r.total_qty }}{% if not loop.last %},{% endif %}{% endfor %}];
+const pieColors = ['#4361ee','#06d6a0','#fb8500','#8338ec','#ef233c','#118ab2','#ffd166'];
+
+const ctx = document.getElementById('weightPieChart').getContext('2d');
+new Chart(ctx, {
+  type: 'doughnut',
+  data: {
+    labels: pieLabels,
+    datasets: [{
+      data: pieData,
+      backgroundColor: pieColors.slice(0, pieLabels.length),
+      borderWidth: 3,
+      borderColor: '#fff',
+      hoverOffset: 8
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { padding: 16, font: { size: 13, family: 'Inter' } }
+      },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString()} bags`
+        }
+      }
+    }
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

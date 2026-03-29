@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}Lots — Bags Stock ERP{% endblock %}
+{% block breadcrumb %}<i class="bi bi-collection-fill me-1"></i> Lots Management{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Lots Management</h1>
+    <p class="page-subtitle">Manage incoming stock lots and their details</p>
+  </div>
+  <a href="{{ url_for('add_lot') }}" class="btn btn-primary btn-action">
+    <i class="bi bi-plus-circle-fill me-2"></i>New Lot
+  </a>
+</div>
+
+<div class="card-custom">
+  <div class="card-custom-header">
+    <h5 class="card-custom-title">
+      <i class="bi bi-collection me-2 text-primary"></i>All Lots
+      <span class="badge bg-primary ms-2">{{ lots | length }}</span>
+    </h5>
+    <div class="search-box">
+      <input type="text" id="lotsSearch" class="form-control form-control-sm" placeholder="Search lots...">
+    </div>
+  </div>
+  <div class="card-custom-body p-0">
+    {% if lots %}
+    <div class="table-responsive">
+      <table class="table table-custom mb-0" id="lotsTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Lot Number</th>
+            <th>Supplier</th>
+            <th>Date Received</th>
+            <th class="text-center">Total Bags</th>
+            <th class="text-end">Total Weight (kg)</th>
+            <th>Notes</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lot in lots %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>
+              <a href="{{ url_for('lot_detail', lot_id=lot.id) }}" class="lot-link fw-semibold">
+                <i class="bi bi-collection me-1"></i>{{ lot.lot_number }}
+              </a>
+            </td>
+            <td>{{ lot.supplier or '<span class="text-muted">—</span>' | safe }}</td>
+            <td>{{ lot.date_received.strftime('%d %b %Y') }}</td>
+            <td class="text-center">
+              <strong>{{ "{:,}".format(lot.total_bags()) }}</strong>
+            </td>
+            <td class="text-end">{{ "{:,.2f}".format(lot.total_weight()) }}</td>
+            <td class="text-muted small">{{ lot.notes or '—' }}</td>
+            <td class="text-center">
+              <a href="{{ url_for('lot_detail', lot_id=lot.id) }}"
+                 class="btn btn-sm btn-outline-info me-1" title="View">
+                <i class="bi bi-eye"></i>
+              </a>
+              <form method="POST"
+                    action="{{ url_for('delete_lot', lot_id=lot.id) }}"
+                    style="display:inline"
+                    onsubmit="return confirm('Delete Lot {{ lot.lot_number }}? All its entries will also be deleted!')">
+                <button class="btn btn-sm btn-outline-danger" title="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="bi bi-collection"></i>
+      <h5>No Lots Created Yet</h5>
+      <p>Start by creating your first lot to organize incoming stock.</p>
+      <a href="{{ url_for('add_lot') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle me-2"></i>Create First Lot
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('lotsSearch').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#lotsTable tbody tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

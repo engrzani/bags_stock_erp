@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% block title %}Add Stock — Bags Stock ERP{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('stock_list') }}" class="breadcrumb-link">Stock</a>
+<i class="bi bi-chevron-right mx-1"></i>
+<span class="breadcrumb-current">Add Entry</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Add Stock Entry</h1>
+    <p class="page-subtitle">Record new bags into inventory</p>
+  </div>
+  <a href="{{ url_for('stock_list') }}" class="btn btn-outline-secondary btn-action">
+    <i class="bi bi-arrow-left me-2"></i>Back to Stock
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card-custom">
+      <div class="card-custom-header">
+        <h5 class="card-custom-title">
+          <i class="bi bi-bag-plus me-2 text-primary"></i>Stock Entry Details
+        </h5>
+      </div>
+      <div class="card-custom-body">
+        <form method="POST" action="{{ url_for('add_stock') }}">
+
+          <!-- Lot Selection -->
+          <div class="form-group-custom">
+            <label class="form-label-custom">Select Lot <span class="text-danger">*</span></label>
+            {% if lots %}
+            <select name="lot_id" class="form-select form-control-custom" required>
+              <option value="" disabled selected>-- Choose a Lot --</option>
+              {% for lot in lots %}
+              <option value="{{ lot.id }}">{{ lot.lot_number }} {% if lot.supplier %}({{ lot.supplier }}){% endif %}</option>
+              {% endfor %}
+            </select>
+            {% else %}
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              No lots found. <a href="{{ url_for('add_lot') }}">Create a lot first</a>.
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Bag Type -->
+          <div class="form-group-custom">
+            <label class="form-label-custom">Bag Type / Name <span class="text-danger">*</span></label>
+            <input type="text" name="bag_type" class="form-control form-control-custom"
+                   placeholder="e.g. Flour Bag, Rice Bag, Sugar Bag..." required
+                   list="bagTypeSuggestions">
+            <datalist id="bagTypeSuggestions">
+              <option value="Flour Bag">
+              <option value="Rice Bag">
+              <option value="Sugar Bag">
+              <option value="Salt Bag">
+              <option value="Wheat Bag">
+              <option value="Cement Bag">
+            </datalist>
+          </div>
+
+          <!-- Weight Selection -->
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Original Weight (kg) <span class="text-danger">*</span></label>
+                <div class="weight-selector" id="origWeightSelector">
+                  {% for w in bag_weights %}
+                  <button type="button" class="weight-btn" data-weight="{{ w }}" data-target="original_weight">
+                    {{ w }} kg
+                  </button>
+                  {% endfor %}
+                </div>
+                <input type="number" name="original_weight" id="original_weight"
+                       class="form-control form-control-custom mt-2"
+                       step="0.1" min="0.1" placeholder="Or enter custom weight..."
+                       required>
+                <small class="form-hint">Weight per bag when received</small>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Current Weight (kg) <span class="text-danger">*</span></label>
+                <div class="weight-selector" id="currWeightSelector">
+                  {% for w in bag_weights %}
+                  <button type="button" class="weight-btn" data-weight="{{ w }}" data-target="current_weight">
+                    {{ w }} kg
+                  </button>
+                  {% endfor %}
+                </div>
+                <input type="number" name="current_weight" id="current_weight"
+                       class="form-control form-control-custom mt-2"
+                       step="0.1" min="0.1" placeholder="Or enter custom weight..."
+                       required>
+                <small class="form-hint">Actual weight per bag (after any initial adjustment)</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quantity -->
+          <div class="form-group-custom">
+            <label class="form-label-custom">Number of Bags <span class="text-danger">*</span></label>
+            <input type="number" name="quantity" id="quantity" class="form-control form-control-custom"
+                   min="1" placeholder="e.g. 100, 500, 1000..." required>
+          </div>
+
+          <!-- Live Calculation -->
+          <div class="calc-preview" id="calcPreview" style="display:none;">
+            <div class="calc-row">
+              <span>Bags:</span><strong id="calcQty">—</strong>
+            </div>
+            <div class="calc-row">
+              <span>Weight per bag:</span><strong id="calcWeight">—</strong>
+            </div>
+            <div class="calc-row total-row">
+              <span>Total Weight:</span><strong id="calcTotal">—</strong>
+            </div>
+          </div>
+
+          <!-- Date -->
+          <div class="form-group-custom">
+            <label class="form-label-custom">Entry Date <span class="text-danger">*</span></label>
+            <input type="date" name="date_entry" class="form-control form-control-custom"
+                   value="{{ today }}" required>
+          </div>
+
+          <!-- Notes -->
+          <div class="form-group-custom">
+            <label class="form-label-custom">Notes</label>
+            <textarea name="notes" class="form-control form-control-custom" rows="2"
+                      placeholder="Optional notes..."></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-lg px-5" {% if not lots %}disabled{% endif %}>
+              <i class="bi bi-check-circle me-2"></i>Save Entry
+            </button>
+            <a href="{{ url_for('stock_list') }}" class="btn btn-light btn-lg px-4">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Weight selector buttons
+document.querySelectorAll('.weight-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = btn.dataset.target;
+    const field = document.getElementById(target);
+    field.value = btn.dataset.weight;
+    // Highlight active button in same group
+    btn.closest('.weight-selector').querySelectorAll('.weight-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateCalc();
+  });
+});
+
+// Live calculation
+function updateCalc() {
+  const qty = parseFloat(document.getElementById('quantity').value) || 0;
+  const wt  = parseFloat(document.getElementById('current_weight').value) || 0;
+  const preview = document.getElementById('calcPreview');
+  if (qty > 0 && wt > 0) {
+    document.getElementById('calcQty').textContent   = qty.toLocaleString() + ' bags';
+    document.getElementById('calcWeight').textContent = wt + ' kg';
+    document.getElementById('calcTotal').textContent  = (qty * wt).toLocaleString('en', {minimumFractionDigits:2}) + ' kg';
+    preview.style.display = 'flex';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+document.getElementById('quantity').addEventListener('input', updateCalc);
+document.getElementById('current_weight').addEventListener('input', updateCalc);
+document.getElementById('original_weight').addEventListener('input', () => {
+  // Auto-fill current weight if not set
+  const curr = document.getElementById('current_weight');
+  if (!curr.value) curr.value = document.getElementById('original_weight').value;
+  updateCalc();
+});
+</script>
+{% endblock %}
