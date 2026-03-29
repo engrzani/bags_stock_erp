@@ -51,7 +51,8 @@ class Client(db.Model):
         return round(sum(d.total_weight for d in self.dispatches), 2)
 
 
-
+# ─────────────────────────── LOT ───────────────────────────
+class Lot(db.Model):
     __tablename__ = 'lots'
     id = db.Column(db.Integer, primary_key=True)
     lot_number = db.Column(db.String(50), unique=True, nullable=False)
