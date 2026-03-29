@@ -21,6 +21,11 @@
     <a href="{{ url_for('add_stock') }}" class="btn btn-primary btn-action">
       <i class="bi bi-plus-circle me-2"></i>Add Stock to Lot
     </a>
+    {% if session.get('role') in ['admin', 'manager'] %}
+    <a href="{{ url_for('edit_lot', lot_id=lot.id) }}" class="btn btn-outline-warning btn-action">
+      <i class="bi bi-pencil me-2"></i>Edit Lot
+    </a>
+    {% endif %}
     <a href="{{ url_for('lots') }}" class="btn btn-outline-secondary btn-action">
       <i class="bi bi-arrow-left me-2"></i>Back
     </a>

@@ -193,6 +193,27 @@ def lot_detail(lot_id):
     return render_template('lot_detail.html', lot=lot, bag_weights=BAG_WEIGHTS)
 
 
+@app.route('/lots/<int:lot_id>/edit', methods=['GET', 'POST'])
+@manager_required
+def edit_lot(lot_id):
+    lot = Lot.query.get_or_404(lot_id)
+    if request.method == 'POST':
+        lot_number = request.form['lot_number'].strip()
+        # Check duplicate only if changed
+        existing = Lot.query.filter_by(lot_number=lot_number).first()
+        if existing and existing.id != lot.id:
+            flash(f'Lot number "{lot_number}" already exists!', 'danger')
+            return redirect(url_for('edit_lot', lot_id=lot_id))
+        lot.lot_number = lot_number
+        lot.supplier = request.form.get('supplier', '').strip()
+        lot.date_received = datetime.strptime(request.form['date_received'], '%Y-%m-%d').date()
+        lot.notes = request.form.get('notes', '').strip()
+        db.session.commit()
+        flash(f'Lot #{lot.lot_number} updated successfully!', 'success')
+        return redirect(url_for('lot_detail', lot_id=lot_id))
+    return render_template('edit_lot.html', lot=lot)
+
+
 @app.route('/lots/<int:lot_id>/delete', methods=['POST'])
 @login_required
 def delete_lot(lot_id):
