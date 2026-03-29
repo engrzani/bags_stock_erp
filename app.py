@@ -1,6 +1,7 @@
 import os
 import urllib.parse
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from functools import wraps
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from models import db, Lot, StockEntry, WeightAdjustment
 from datetime import datetime, date
 from sqlalchemy import func
@@ -42,8 +43,42 @@ with app.app_context():
         print(f'DB init error: {e}')
 
 
+# ─────────────────────────── AUTH ───────────────────────────
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if session.get('logged_in'):
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            session['logged_in'] = True
+            session['username'] = username
+            return redirect(url_for('dashboard'))
+        flash('Invalid username or password.', 'danger')
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('You have been logged out.', 'success')
+    return redirect(url_for('login'))
+
+
 # ─────────────────────────── DASHBOARD ───────────────────────────
 @app.route('/')
+@login_required
 def dashboard():
     total_bags = db.session.query(func.sum(StockEntry.quantity)).scalar() or 0
     total_weight = db.session.query(
@@ -77,12 +112,14 @@ def dashboard():
 
 # ─────────────────────────── LOTS ───────────────────────────
 @app.route('/lots')
+@login_required
 def lots():
     all_lots = Lot.query.order_by(Lot.created_at.desc()).all()
     return render_template('lots.html', lots=all_lots)
 
 
 @app.route('/lots/add', methods=['GET', 'POST'])
+@login_required
 def add_lot():
     if request.method == 'POST':
         lot_number = request.form['lot_number'].strip()
@@ -109,12 +146,14 @@ def add_lot():
 
 
 @app.route('/lots/<int:lot_id>')
+@login_required
 def lot_detail(lot_id):
     lot = Lot.query.get_or_404(lot_id)
     return render_template('lot_detail.html', lot=lot, bag_weights=BAG_WEIGHTS)
 
 
 @app.route('/lots/<int:lot_id>/delete', methods=['POST'])
+@login_required
 def delete_lot(lot_id):
     lot = Lot.query.get_or_404(lot_id)
     db.session.delete(lot)
@@ -125,12 +164,14 @@ def delete_lot(lot_id):
 
 # ─────────────────────────── STOCK ENTRIES ───────────────────────────
 @app.route('/stock')
+@login_required
 def stock_list():
     entries = StockEntry.query.order_by(StockEntry.created_at.desc()).all()
     return render_template('stock_list.html', entries=entries)
 
 
 @app.route('/stock/add', methods=['GET', 'POST'])
+@login_required
 def add_stock():
     lots = Lot.query.order_by(Lot.lot_number).all()
     if request.method == 'POST':
@@ -162,6 +203,7 @@ def add_stock():
 
 
 @app.route('/stock/<int:entry_id>/delete', methods=['POST'])
+@login_required
 def delete_stock(entry_id):
     entry = StockEntry.query.get_or_404(entry_id)
     db.session.delete(entry)
@@ -172,12 +214,14 @@ def delete_stock(entry_id):
 
 # ─────────────────────────── WEIGHT ADJUSTMENTS ───────────────────────────
 @app.route('/adjustments')
+@login_required
 def adjustments():
     all_adj = WeightAdjustment.query.order_by(WeightAdjustment.created_at.desc()).all()
     return render_template('adjustments.html', adjustments=all_adj)
 
 
 @app.route('/adjustments/add', methods=['GET', 'POST'])
+@login_required
 def add_adjustment():
     entries = StockEntry.query.order_by(StockEntry.created_at.desc()).all()
     if request.method == 'POST':
@@ -232,6 +276,7 @@ def add_adjustment():
 
 # ─────────────────────────── REPORTS ───────────────────────────
 @app.route('/reports')
+@login_required
 def reports():
     # By weight category
     by_weight = db.session.query(
@@ -265,6 +310,7 @@ def reports():
 
 # ─────────────────────────── API (for JS fetch) ───────────────────────────
 @app.route('/api/entry/<int:entry_id>')
+@login_required
 def api_entry(entry_id):
     e = StockEntry.query.get_or_404(entry_id)
     return jsonify({
