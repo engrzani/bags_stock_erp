@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Add User — Bags Stock ERP{% endblock %}
+{% block breadcrumb %}<a href="{{ url_for('users') }}" class="breadcrumb-link">Users</a> / Add User{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Add New User</h1>
+    <p class="page-subtitle">Create a new system user with a role</p>
+  </div>
+  <a href="{{ url_for('users') }}" class="btn btn-outline-secondary btn-action">
+    <i class="bi bi-arrow-left me-2"></i>Back
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card-custom">
+      <div class="card-custom-header">
+        <h5 class="card-custom-title"><i class="bi bi-person-plus me-2 text-primary"></i>User Details</h5>
+      </div>
+      <div class="card-custom-body">
+        <form method="POST" action="{{ url_for('add_user') }}">
+          <div class="form-group-custom">
+            <label class="form-label-custom">Username <span class="text-danger">*</span></label>
+            <input type="text" name="username" class="form-control-custom form-control" required placeholder="e.g. john_doe" autocomplete="off">
+          </div>
+          <div class="form-group-custom">
+            <label class="form-label-custom">Full Name</label>
+            <input type="text" name="full_name" class="form-control-custom form-control" placeholder="e.g. John Doe">
+          </div>
+          <div class="form-group-custom">
+            <label class="form-label-custom">Password <span class="text-danger">*</span></label>
+            <input type="password" name="password" class="form-control-custom form-control" required minlength="4" placeholder="Min 4 characters">
+          </div>
+          <div class="form-group-custom">
+            <label class="form-label-custom">Role <span class="text-danger">*</span></label>
+            <select name="role" class="form-select form-control-custom" required>
+              <option value="viewer">Viewer — Read-only access</option>
+              <option value="manager">Manager — Add & edit access</option>
+              <option value="admin">Administrator — Full access</option>
+            </select>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-action">
+              <i class="bi bi-person-plus-fill me-2"></i>Create User
+            </button>
+            <a href="{{ url_for('users') }}" class="btn btn-light btn-action">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

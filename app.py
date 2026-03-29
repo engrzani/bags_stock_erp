@@ -2,7 +2,7 @@ import os
 import urllib.parse
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
-from models import db, Lot, StockEntry, WeightAdjustment
+from models import db, Lot, StockEntry, WeightAdjustment, User, Client, StockDispatch, StockRequirement
 from datetime import datetime, date
 from sqlalchemy import func
 
@@ -39,19 +39,49 @@ BAG_WEIGHTS = [20.0, 24.5, 25.0, 40.0, 49.0, 50.0]
 with app.app_context():
     try:
         db.create_all()
+        # Create default admin if no users exist
+        if User.query.count() == 0:
+            admin = User(
+                username=os.environ.get('ADMIN_USERNAME', 'admin'),
+                full_name='Administrator',
+                role='admin',
+                is_active=True
+            )
+            admin.set_password(os.environ.get('ADMIN_PASSWORD', 'admin123'))
+            db.session.add(admin)
+            db.session.commit()
     except Exception as e:
         print(f'DB init error: {e}')
 
 
 # ─────────────────────────── AUTH ───────────────────────────
-ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
-
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get('logged_in'):
             return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+def manager_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        if session.get('role') not in ('admin', 'manager'):
+            flash('Access denied. Manager or Admin role required.', 'danger')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        if session.get('role') != 'admin':
+            flash('Access denied. Admin role required.', 'danger')
+            return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated
 
@@ -62,9 +92,13 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
-        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        user = User.query.filter_by(username=username, is_active=True).first()
+        if user and user.check_password(password):
             session['logged_in'] = True
-            session['username'] = username
+            session['username'] = user.username
+            session['full_name'] = user.full_name or user.username
+            session['role'] = user.role
+            session['user_id'] = user.id
             return redirect(url_for('dashboard'))
         flash('Invalid username or password.', 'danger')
     return render_template('login.html')
@@ -99,6 +133,11 @@ def dashboard():
     # Recent 5 lots
     recent_lots = Lot.query.order_by(Lot.created_at.desc()).limit(5).all()
 
+    # New stats
+    total_dispatched = db.session.query(func.sum(StockDispatch.bags_dispatched)).scalar() or 0
+    total_clients = Client.query.count()
+    pending_requirements = StockRequirement.query.filter_by(status='pending').count()
+
     return render_template('dashboard.html',
                            total_bags=total_bags,
                            total_weight=round(total_weight, 2),
@@ -107,7 +146,10 @@ def dashboard():
                            weight_breakdown=weight_breakdown,
                            recent_entries=recent_entries,
                            recent_lots=recent_lots,
-                           bag_weights=BAG_WEIGHTS)
+                           bag_weights=BAG_WEIGHTS,
+                           total_dispatched=total_dispatched,
+                           total_clients=total_clients,
+                           pending_requirements=pending_requirements)
 
 
 # ─────────────────────────── LOTS ───────────────────────────
@@ -318,8 +360,237 @@ def api_entry(entry_id):
         'bag_type': e.bag_type,
         'current_weight': e.current_weight,
         'quantity': e.quantity,
+        'available_bags': e.available_bags,
         'lot_number': e.lot.lot_number
     })
+
+
+# ─────────────────────────── USER MANAGEMENT (Admin only) ───────────────────────────
+@app.route('/users')
+@admin_required
+def users():
+    all_users = User.query.order_by(User.created_at.asc()).all()
+    return render_template('users.html', users=all_users)
+
+
+@app.route('/users/add', methods=['GET', 'POST'])
+@admin_required
+def add_user():
+    if request.method == 'POST':
+        username = request.form['username'].strip()
+        password = request.form['password']
+        full_name = request.form.get('full_name', '').strip()
+        role = request.form.get('role', 'viewer')
+
+        if User.query.filter_by(username=username).first():
+            flash(f'Username "{username}" already exists!', 'danger')
+            return redirect(url_for('add_user'))
+
+        user = User(username=username, full_name=full_name, role=role, is_active=True)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        flash(f'User "{username}" created successfully!', 'success')
+        return redirect(url_for('users'))
+    return render_template('add_user.html')
+
+
+@app.route('/users/<int:user_id>/toggle', methods=['POST'])
+@admin_required
+def toggle_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == session.get('user_id'):
+        flash('You cannot deactivate your own account!', 'danger')
+        return redirect(url_for('users'))
+    user.is_active = not user.is_active
+    db.session.commit()
+    status = 'activated' if user.is_active else 'deactivated'
+    flash(f'User "{user.username}" {status}.', 'success')
+    return redirect(url_for('users'))
+
+
+@app.route('/users/<int:user_id>/reset-password', methods=['POST'])
+@admin_required
+def reset_password(user_id):
+    user = User.query.get_or_404(user_id)
+    new_password = request.form.get('new_password', '').strip()
+    if not new_password or len(new_password) < 4:
+        flash('Password must be at least 4 characters.', 'danger')
+        return redirect(url_for('users'))
+    user.set_password(new_password)
+    db.session.commit()
+    flash(f'Password for "{user.username}" has been reset.', 'success')
+    return redirect(url_for('users'))
+
+
+# ─────────────────────────── CLIENTS ───────────────────────────
+@app.route('/clients')
+@login_required
+def clients():
+    all_clients = Client.query.order_by(Client.name).all()
+    return render_template('clients.html', clients=all_clients)
+
+
+@app.route('/clients/add', methods=['GET', 'POST'])
+@manager_required
+def add_client():
+    if request.method == 'POST':
+        name = request.form['name'].strip()
+        contact_person = request.form.get('contact_person', '').strip()
+        phone = request.form.get('phone', '').strip()
+        city = request.form.get('city', '').strip()
+        address = request.form.get('address', '').strip()
+        notes = request.form.get('notes', '').strip()
+        client = Client(name=name, contact_person=contact_person,
+                        phone=phone, city=city, address=address, notes=notes)
+        db.session.add(client)
+        db.session.commit()
+        flash(f'Client "{name}" added successfully!', 'success')
+        return redirect(url_for('clients'))
+    return render_template('add_client.html')
+
+
+@app.route('/clients/<int:client_id>')
+@login_required
+def client_detail(client_id):
+    client = Client.query.get_or_404(client_id)
+    dispatches = StockDispatch.query.filter_by(client_id=client_id).order_by(StockDispatch.date_dispatched.desc()).all()
+    return render_template('client_detail.html', client=client, dispatches=dispatches)
+
+
+@app.route('/clients/<int:client_id>/delete', methods=['POST'])
+@admin_required
+def delete_client(client_id):
+    client = Client.query.get_or_404(client_id)
+    db.session.delete(client)
+    db.session.commit()
+    flash(f'Client "{client.name}" deleted.', 'warning')
+    return redirect(url_for('clients'))
+
+
+# ─────────────────────────── DISPATCHES ───────────────────────────
+@app.route('/dispatches')
+@login_required
+def dispatches():
+    all_dispatches = StockDispatch.query.order_by(StockDispatch.date_dispatched.desc()).all()
+    total_bags = sum(d.bags_dispatched for d in all_dispatches)
+    total_weight = round(sum(d.total_weight for d in all_dispatches), 2)
+    return render_template('dispatches.html', dispatches=all_dispatches,
+                           total_bags=total_bags, total_weight=total_weight)
+
+
+@app.route('/dispatches/add', methods=['GET', 'POST'])
+@manager_required
+def add_dispatch():
+    all_clients = Client.query.order_by(Client.name).all()
+    entries = StockEntry.query.order_by(StockEntry.created_at.desc()).all()
+    if request.method == 'POST':
+        client_id = int(request.form['client_id'])
+        entry_id_val = request.form.get('entry_id', '').strip()
+        bags_dispatched = int(request.form['bags_dispatched'])
+        weight_per_bag = float(request.form['weight_per_bag'])
+        date_str = request.form['date_dispatched']
+        notes = request.form.get('notes', '').strip()
+
+        entry_id = int(entry_id_val) if entry_id_val else None
+
+        if entry_id:
+            entry = StockEntry.query.get_or_404(entry_id)
+            if bags_dispatched > entry.available_bags:
+                flash(f'Cannot dispatch {bags_dispatched} bags — only {entry.available_bags} available!', 'danger')
+                return redirect(url_for('add_dispatch'))
+            # Deduct from stock
+            entry.quantity -= bags_dispatched
+
+        dispatch = StockDispatch(
+            client_id=client_id,
+            entry_id=entry_id,
+            bags_dispatched=bags_dispatched,
+            weight_per_bag=weight_per_bag,
+            date_dispatched=datetime.strptime(date_str, '%Y-%m-%d').date(),
+            notes=notes
+        )
+        db.session.add(dispatch)
+        db.session.commit()
+        flash(f'Dispatch recorded: {bags_dispatched} bags → {Client.query.get(client_id).name}', 'success')
+        return redirect(url_for('dispatches'))
+    return render_template('add_dispatch.html', clients=all_clients, entries=entries,
+                           bag_weights=BAG_WEIGHTS, today=date.today().isoformat())
+
+
+@app.route('/dispatches/<int:dispatch_id>/delete', methods=['POST'])
+@admin_required
+def delete_dispatch(dispatch_id):
+    d = StockDispatch.query.get_or_404(dispatch_id)
+    # Restore stock if linked to entry
+    if d.entry_id:
+        entry = StockEntry.query.get(d.entry_id)
+        if entry:
+            entry.quantity += d.bags_dispatched
+    db.session.delete(d)
+    db.session.commit()
+    flash('Dispatch record deleted and stock restored.', 'warning')
+    return redirect(url_for('dispatches'))
+
+
+# ─────────────────────────── STOCK REQUIREMENTS ───────────────────────────
+@app.route('/requirements')
+@login_required
+def requirements():
+    all_reqs = StockRequirement.query.order_by(StockRequirement.created_at.desc()).all()
+    pending = [r for r in all_reqs if r.status == 'pending']
+    in_progress = [r for r in all_reqs if r.status == 'in_progress']
+    return render_template('requirements.html', requirements=all_reqs,
+                           pending_count=len(pending), in_progress_count=len(in_progress))
+
+
+@app.route('/requirements/add', methods=['GET', 'POST'])
+@manager_required
+def add_requirement():
+    if request.method == 'POST':
+        title = request.form['title'].strip()
+        bag_type = request.form.get('bag_type', '').strip()
+        weight_str = request.form.get('weight_per_bag', '').strip()
+        quantity_required = int(request.form['quantity_required'])
+        due_date_str = request.form.get('due_date', '').strip()
+        supplier = request.form.get('supplier', '').strip()
+        notes = request.form.get('notes', '').strip()
+
+        req = StockRequirement(
+            title=title,
+            bag_type=bag_type,
+            weight_per_bag=float(weight_str) if weight_str else None,
+            quantity_required=quantity_required,
+            due_date=datetime.strptime(due_date_str, '%Y-%m-%d').date() if due_date_str else None,
+            supplier=supplier,
+            notes=notes,
+            status='pending'
+        )
+        db.session.add(req)
+        db.session.commit()
+        flash(f'Requirement "{title}" added!', 'success')
+        return redirect(url_for('requirements'))
+    return render_template('add_requirement.html', bag_weights=BAG_WEIGHTS, today=date.today().isoformat())
+
+
+@app.route('/requirements/<int:req_id>/status', methods=['POST'])
+@manager_required
+def update_requirement_status(req_id):
+    req = StockRequirement.query.get_or_404(req_id)
+    req.status = request.form.get('status', req.status)
+    db.session.commit()
+    flash(f'Requirement status updated to "{req.status_label}".', 'success')
+    return redirect(url_for('requirements'))
+
+
+@app.route('/requirements/<int:req_id>/delete', methods=['POST'])
+@admin_required
+def delete_requirement(req_id):
+    req = StockRequirement.query.get_or_404(req_id)
+    db.session.delete(req)
+    db.session.commit()
+    flash('Requirement deleted.', 'warning')
+    return redirect(url_for('requirements'))
 
 
 if __name__ == '__main__':

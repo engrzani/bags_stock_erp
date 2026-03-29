@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+{% block title %}Stock Requirements — Bags Stock ERP{% endblock %}
+{% block breadcrumb %}<i class="bi bi-clipboard-check me-1"></i> Stock Requirements{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Stock Requirements</h1>
+    <p class="page-subtitle">Track upcoming and required stock orders</p>
+  </div>
+  {% if session.get('role') in ['admin', 'manager'] %}
+  <a href="{{ url_for('add_requirement') }}" class="btn btn-primary btn-action">
+    <i class="bi bi-plus-circle-fill me-2"></i>Add Requirement
+  </a>
+  {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-orange-soft"><i class="bi bi-hourglass-split text-warning"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ pending_count }}</div>
+        <div class="mini-kpi-label">Pending</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-blue-soft"><i class="bi bi-arrow-repeat text-primary"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ in_progress_count }}</div>
+        <div class="mini-kpi-label">In Progress</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-green-soft"><i class="bi bi-check-circle text-success"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ requirements | selectattr('status', 'eq', 'fulfilled') | list | length }}</div>
+        <div class="mini-kpi-label">Fulfilled</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-purple-soft"><i class="bi bi-list-check text-purple"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ requirements | length }}</div>
+        <div class="mini-kpi-label">Total Requirements</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card-custom">
+  <div class="card-custom-header">
+    <h5 class="card-custom-title">
+      <i class="bi bi-clipboard-check me-2 text-primary"></i>All Requirements
+    </h5>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <select id="statusFilter" class="form-select form-select-sm" style="width:150px;">
+        <option value="">All Status</option>
+        <option value="pending">Pending</option>
+        <option value="in_progress">In Progress</option>
+        <option value="fulfilled">Fulfilled</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <div class="search-box">
+        <input type="text" id="reqSearch" class="form-control form-control-sm" placeholder="Search...">
+      </div>
+    </div>
+  </div>
+  <div class="card-custom-body p-0">
+    {% if requirements %}
+    <div class="table-responsive">
+      <table class="table table-custom mb-0" id="reqTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Title</th>
+            <th>Bag Type</th>
+            <th>Weight/Bag</th>
+            <th class="text-center">Qty Required</th>
+            <th>Due Date</th>
+            <th>Supplier</th>
+            <th class="text-center">Status</th>
+            {% if session.get('role') in ['admin', 'manager'] %}<th class="text-center">Actions</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in requirements %}
+          <tr data-status="{{ r.status }}">
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>
+              <div class="fw-semibold">{{ r.title }}</div>
+              {% if r.notes %}<div class="text-muted" style="font-size:11.5px;">{{ r.notes[:60] }}{% if r.notes|length > 60 %}...{% endif %}</div>{% endif %}
+            </td>
+            <td>{{ r.bag_type or '—' }}</td>
+            <td>{% if r.weight_per_bag %}<span class="weight-badge">{{ r.weight_per_bag }} kg</span>{% else %}—{% endif %}</td>
+            <td class="text-center fw-semibold">{{ "{:,}".format(r.quantity_required) }}</td>
+            <td>
+              {% if r.due_date %}
+                {% set today_date = today_date if today_date is defined else none %}
+                <span class="{% if r.status not in ['fulfilled','cancelled'] and r.due_date < today %}text-danger fw-semibold{% endif %}">
+                  {{ r.due_date.strftime('%d %b %Y') }}
+                </span>
+              {% else %}—{% endif %}
+            </td>
+            <td>{{ r.supplier or '—' }}</td>
+            <td class="text-center">
+              <span class="badge bg-{{ r.status_color }}">{{ r.status_label }}</span>
+            </td>
+            {% if session.get('role') in ['admin', 'manager'] %}
+            <td class="text-center">
+              <div class="d-flex gap-1 justify-content-center">
+                <form method="POST" action="{{ url_for('update_requirement_status', req_id=r.id) }}" class="d-inline">
+                  <select name="status" class="form-select form-select-sm status-select"
+                          onchange="this.form.submit()" style="font-size:11px;padding:3px 6px;width:110px;">
+                    <option value="pending" {% if r.status=='pending' %}selected{% endif %}>Pending</option>
+                    <option value="in_progress" {% if r.status=='in_progress' %}selected{% endif %}>In Progress</option>
+                    <option value="fulfilled" {% if r.status=='fulfilled' %}selected{% endif %}>Fulfilled</option>
+                    <option value="cancelled" {% if r.status=='cancelled' %}selected{% endif %}>Cancelled</option>
+                  </select>
+                </form>
+                {% if session.get('role') == 'admin' %}
+                <form method="POST" action="{{ url_for('delete_requirement', req_id=r.id) }}"
+                      onsubmit="return confirm('Delete this requirement?')">
+                  <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="bi bi-clipboard"></i>
+      <h5>No requirements yet</h5>
+      <p>Add stock requirements to track upcoming orders.</p>
+      {% if session.get('role') in ['admin', 'manager'] %}
+      <a href="{{ url_for('add_requirement') }}" class="btn btn-primary btn-action">
+        <i class="bi bi-plus-circle-fill me-2"></i>Add Requirement
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const searchEl = document.getElementById('reqSearch');
+const filterEl = document.getElementById('statusFilter');
+
+function filterTable() {
+  const q = searchEl.value.toLowerCase();
+  const status = filterEl.value;
+  document.querySelectorAll('#reqTable tbody tr').forEach(row => {
+    const matchText = row.textContent.toLowerCase().includes(q);
+    const matchStatus = !status || row.dataset.status === status;
+    row.style.display = (matchText && matchStatus) ? '' : 'none';
+  });
+}
+searchEl.addEventListener('input', filterTable);
+filterEl.addEventListener('change', filterTable);
+</script>
+{% endblock %}

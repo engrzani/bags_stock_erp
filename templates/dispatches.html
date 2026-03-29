@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}Dispatches — Bags Stock ERP{% endblock %}
+{% block breadcrumb %}<i class="bi bi-truck me-1"></i> Dispatches{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Stock Dispatches</h1>
+    <p class="page-subtitle">Track all outgoing stock sent to clients</p>
+  </div>
+  {% if session.get('role') in ['admin', 'manager'] %}
+  <a href="{{ url_for('add_dispatch') }}" class="btn btn-primary btn-action">
+    <i class="bi bi-plus-circle-fill me-2"></i>New Dispatch
+  </a>
+  {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-blue-soft"><i class="bi bi-bag text-primary"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ "{:,}".format(total_bags) }}</div>
+        <div class="mini-kpi-label">Total Bags Dispatched</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-green-soft"><i class="bi bi-speedometer text-success"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ "{:,.1f}".format(total_weight) }}</div>
+        <div class="mini-kpi-label">Total Weight (kg)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-purple-soft"><i class="bi bi-truck text-purple"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ dispatches | length }}</div>
+        <div class="mini-kpi-label">Dispatch Records</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card-custom">
+  <div class="card-custom-header">
+    <h5 class="card-custom-title">
+      <i class="bi bi-truck me-2 text-primary"></i>All Dispatches
+      <span class="badge bg-primary ms-2">{{ dispatches | length }}</span>
+    </h5>
+    <div class="search-box">
+      <input type="text" id="dispatchSearch" class="form-control form-control-sm" placeholder="Search...">
+    </div>
+  </div>
+  <div class="card-custom-body p-0">
+    {% if dispatches %}
+    <div class="table-responsive">
+      <table class="table table-custom mb-0" id="dispatchTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Date</th>
+            <th>Client</th>
+            <th class="text-center">Bags</th>
+            <th>Weight/Bag</th>
+            <th class="text-end">Total Weight (kg)</th>
+            <th>Notes</th>
+            {% if session.get('role') == 'admin' %}<th class="text-center">Del</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in dispatches %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>{{ d.date_dispatched.strftime('%d %b %Y') }}</td>
+            <td>
+              <a href="{{ url_for('client_detail', client_id=d.client_id) }}" class="lot-link">
+                <i class="bi bi-building me-1"></i>{{ d.client.name }}
+              </a>
+            </td>
+            <td class="text-center fw-semibold">{{ "{:,}".format(d.bags_dispatched) }}</td>
+            <td><span class="weight-badge">{{ d.weight_per_bag }} kg</span></td>
+            <td class="text-end fw-semibold">{{ "{:,.1f}".format(d.total_weight) }}</td>
+            <td class="text-muted" style="font-size:12px;">{{ d.notes or '—' }}</td>
+            {% if session.get('role') == 'admin' %}
+            <td class="text-center">
+              <form method="POST" action="{{ url_for('delete_dispatch', dispatch_id=d.id) }}"
+                    onsubmit="return confirm('Delete dispatch and restore stock?')">
+                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="bi bi-truck"></i>
+      <h5>No dispatches yet</h5>
+      <p>Record your first stock dispatch to a client.</p>
+      {% if session.get('role') in ['admin', 'manager'] %}
+      <a href="{{ url_for('add_dispatch') }}" class="btn btn-primary btn-action">
+        <i class="bi bi-plus-circle-fill me-2"></i>New Dispatch
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('dispatchSearch').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#dispatchTable tbody tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

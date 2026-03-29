@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% block title %}{{ client.name }} — Bags Stock ERP{% endblock %}
+{% block breadcrumb %}<a href="{{ url_for('clients') }}" class="breadcrumb-link">Clients</a> / {{ client.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-building me-2 text-primary"></i>{{ client.name }}</h1>
+    <p class="page-subtitle">Client dispatch history and details</p>
+  </div>
+  <div class="page-actions">
+    {% if session.get('role') in ['admin', 'manager'] %}
+    <a href="{{ url_for('add_dispatch') }}" class="btn btn-primary btn-action">
+      <i class="bi bi-truck me-2"></i>New Dispatch
+    </a>
+    {% endif %}
+    <a href="{{ url_for('clients') }}" class="btn btn-outline-secondary btn-action">
+      <i class="bi bi-arrow-left me-2"></i>Back
+    </a>
+  </div>
+</div>
+
+<!-- Client Info -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-blue-soft"><i class="bi bi-bag text-primary"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ "{:,}".format(client.total_bags_received()) }}</div>
+        <div class="mini-kpi-label">Total Bags Received</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-green-soft"><i class="bi bi-speedometer text-success"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ "{:,.1f}".format(client.total_weight_received()) }}</div>
+        <div class="mini-kpi-label">Total Weight (kg)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-orange-soft"><i class="bi bi-list-ul text-warning"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ dispatches | length }}</div>
+        <div class="mini-kpi-label">Total Dispatches</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card-custom p-3">
+      <div style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Contact Info</div>
+      <div class="mt-1" style="font-size:13.5px;">
+        {% if client.contact_person %}<div><i class="bi bi-person me-1 text-muted"></i>{{ client.contact_person }}</div>{% endif %}
+        {% if client.phone %}<div><i class="bi bi-telephone me-1 text-muted"></i>{{ client.phone }}</div>{% endif %}
+        {% if client.city %}<div><i class="bi bi-geo-alt me-1 text-muted"></i>{{ client.city }}</div>{% endif %}
+        {% if not client.contact_person and not client.phone and not client.city %}
+          <span class="text-muted">No contact info</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dispatch History -->
+<div class="card-custom">
+  <div class="card-custom-header">
+    <h5 class="card-custom-title"><i class="bi bi-truck me-2 text-primary"></i>Dispatch History</h5>
+  </div>
+  <div class="card-custom-body p-0">
+    {% if dispatches %}
+    <div class="table-responsive">
+      <table class="table table-custom mb-0">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Date</th>
+            <th>Bags</th>
+            <th>Weight/Bag (kg)</th>
+            <th class="text-end">Total Weight (kg)</th>
+            <th>Notes</th>
+            {% if session.get('role') == 'admin' %}<th class="text-center">Del</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in dispatches %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>{{ d.date_dispatched.strftime('%d %b %Y') }}</td>
+            <td><span class="fw-semibold">{{ "{:,}".format(d.bags_dispatched) }}</span></td>
+            <td><span class="weight-badge">{{ d.weight_per_bag }} kg</span></td>
+            <td class="text-end fw-semibold">{{ "{:,.1f}".format(d.total_weight) }}</td>
+            <td class="text-muted" style="font-size:12px;">{{ d.notes or '—' }}</td>
+            {% if session.get('role') == 'admin' %}
+            <td class="text-center">
+              <form method="POST" action="{{ url_for('delete_dispatch', dispatch_id=d.id) }}"
+                    onsubmit="return confirm('Delete this dispatch?')">
+                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state-sm">
+      <i class="bi bi-truck"></i>
+      <p>No dispatches recorded yet for this client.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

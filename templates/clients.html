@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}Clients — Bags Stock ERP{% endblock %}
+{% block breadcrumb %}<i class="bi bi-building me-1"></i> Clients{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Clients</h1>
+    <p class="page-subtitle">Manage your customers and track their stock dispatches</p>
+  </div>
+  {% if session.get('role') in ['admin', 'manager'] %}
+  <a href="{{ url_for('add_client') }}" class="btn btn-primary btn-action">
+    <i class="bi bi-plus-circle-fill me-2"></i>Add Client
+  </a>
+  {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-blue-soft"><i class="bi bi-building text-primary"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ clients | length }}</div>
+        <div class="mini-kpi-label">Total Clients</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-orange-soft"><i class="bi bi-bag text-warning"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ "{:,}".format(clients | sum(attribute='total_bags_received')) }}</div>
+        <div class="mini-kpi-label">Total Bags Dispatched</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-green-soft"><i class="bi bi-speedometer text-success"></i></div>
+      <div>
+        <div class="mini-kpi-value">{{ "{:,.1f}".format(clients | sum(attribute='total_weight_received')) }}</div>
+        <div class="mini-kpi-label">Total Weight Dispatched (kg)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card-custom">
+  <div class="card-custom-header">
+    <h5 class="card-custom-title">
+      <i class="bi bi-building me-2 text-primary"></i>All Clients
+      <span class="badge bg-primary ms-2">{{ clients | length }}</span>
+    </h5>
+    <div class="search-box">
+      <input type="text" id="clientSearch" class="form-control form-control-sm" placeholder="Search clients...">
+    </div>
+  </div>
+  <div class="card-custom-body p-0">
+    {% if clients %}
+    <div class="table-responsive">
+      <table class="table table-custom mb-0" id="clientTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Client Name</th>
+            <th>Contact Person</th>
+            <th>Phone</th>
+            <th>City</th>
+            <th class="text-center">Total Bags</th>
+            <th class="text-end">Total Weight (kg)</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for client in clients %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>
+              <a href="{{ url_for('client_detail', client_id=client.id) }}" class="lot-link fw-semibold">
+                <i class="bi bi-building me-1"></i>{{ client.name }}
+              </a>
+            </td>
+            <td>{{ client.contact_person or '—' }}</td>
+            <td>{{ client.phone or '—' }}</td>
+            <td>{{ client.city or '—' }}</td>
+            <td class="text-center fw-semibold">{{ "{:,}".format(client.total_bags_received()) }}</td>
+            <td class="text-end fw-semibold">{{ "{:,.1f}".format(client.total_weight_received()) }}</td>
+            <td class="text-center">
+              <div class="d-flex gap-1 justify-content-center">
+                <a href="{{ url_for('client_detail', client_id=client.id) }}" class="btn btn-sm btn-outline-info" title="Details">
+                  <i class="bi bi-eye"></i>
+                </a>
+                {% if session.get('role') == 'admin' %}
+                <form method="POST" action="{{ url_for('delete_client', client_id=client.id) }}"
+                      onsubmit="return confirm('Delete client {{ client.name }}?')">
+                  <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="bi bi-building"></i>
+      <h5>No clients yet</h5>
+      <p>Add your first client to start tracking dispatches.</p>
+      {% if session.get('role') in ['admin', 'manager'] %}
+      <a href="{{ url_for('add_client') }}" class="btn btn-primary btn-action">
+        <i class="bi bi-plus-circle-fill me-2"></i>Add Client
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('clientSearch').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#clientTable tbody tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

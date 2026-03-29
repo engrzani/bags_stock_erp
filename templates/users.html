@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% block title %}Users — Bags Stock ERP{% endblock %}
+{% block breadcrumb %}<i class="bi bi-people-fill me-1"></i> User Management{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">User Management</h1>
+    <p class="page-subtitle">Manage system users and their access roles</p>
+  </div>
+  <a href="{{ url_for('add_user') }}" class="btn btn-primary btn-action">
+    <i class="bi bi-person-plus-fill me-2"></i>Add User
+  </a>
+</div>
+
+<!-- Role Legend -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="role-card role-admin">
+      <div class="role-icon"><i class="bi bi-shield-fill-check"></i></div>
+      <div>
+        <div class="role-name">Administrator</div>
+        <div class="role-desc">Full access — users, delete, all settings</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="role-card role-manager">
+      <div class="role-icon"><i class="bi bi-person-badge-fill"></i></div>
+      <div>
+        <div class="role-name">Manager</div>
+        <div class="role-desc">Add & edit stock, lots, dispatches — no delete</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="role-card role-viewer">
+      <div class="role-icon"><i class="bi bi-eye-fill"></i></div>
+      <div>
+        <div class="role-name">Viewer</div>
+        <div class="role-desc">Read-only — view all data, no edits</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card-custom">
+  <div class="card-custom-header">
+    <h5 class="card-custom-title">
+      <i class="bi bi-people me-2 text-primary"></i>All Users
+      <span class="badge bg-primary ms-2">{{ users | length }}</span>
+    </h5>
+  </div>
+  <div class="card-custom-body p-0">
+    <div class="table-responsive">
+      <table class="table table-custom mb-0">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Username</th>
+            <th>Full Name</th>
+            <th>Role</th>
+            <th class="text-center">Status</th>
+            <th>Created</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <div class="user-avatar-sm bg-{{ user.role_color }}-soft text-{{ user.role_color }}">
+                  {{ user.username[0] | upper }}
+                </div>
+                <span class="fw-semibold">{{ user.username }}</span>
+                {% if user.id == session.get('user_id') %}
+                  <span class="badge bg-primary-soft text-primary" style="font-size:10px;">You</span>
+                {% endif %}
+              </div>
+            </td>
+            <td>{{ user.full_name or '—' }}</td>
+            <td><span class="badge bg-{{ user.role_color }}">{{ user.role_label }}</span></td>
+            <td class="text-center">
+              {% if user.is_active %}
+                <span class="badge bg-success">Active</span>
+              {% else %}
+                <span class="badge bg-secondary">Inactive</span>
+              {% endif %}
+            </td>
+            <td class="text-muted" style="font-size:12px;">{{ user.created_at.strftime('%d %b %Y') }}</td>
+            <td class="text-center">
+              <div class="d-flex gap-1 justify-content-center">
+                <!-- Reset Password -->
+                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal"
+                        data-bs-target="#resetModal{{ user.id }}" title="Reset Password">
+                  <i class="bi bi-key"></i>
+                </button>
+                <!-- Toggle Active -->
+                {% if user.id != session.get('user_id') %}
+                <form method="POST" action="{{ url_for('toggle_user', user_id=user.id) }}" class="d-inline">
+                  <button class="btn btn-sm btn-outline-{{ 'danger' if user.is_active else 'success' }}"
+                          title="{{ 'Deactivate' if user.is_active else 'Activate' }}">
+                    <i class="bi bi-{{ 'person-x' if user.is_active else 'person-check' }}"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          <!-- Reset Password Modal -->
+          <div class="modal fade" id="resetModal{{ user.id }}" tabindex="-1">
+            <div class="modal-dialog modal-sm">
+              <div class="modal-content" style="border-radius:16px;">
+                <div class="modal-header border-0 pb-0">
+                  <h6 class="modal-title fw-bold">Reset Password</h6>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{{ url_for('reset_password', user_id=user.id) }}">
+                  <div class="modal-body">
+                    <p class="text-muted" style="font-size:13px;">Set new password for <strong>{{ user.username }}</strong></p>
+                    <input type="password" name="new_password" class="form-control" placeholder="New password" required minlength="4">
+                  </div>
+                  <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Reset</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

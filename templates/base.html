@@ -37,6 +37,7 @@
           <span>Dashboard</span>
         </a>
       </li>
+
       <li class="nav-section-title">STOCK</li>
       <li class="nav-item">
         <a class="nav-link {% if request.endpoint in ['lots','add_lot','lot_detail'] %}active{% endif %}"
@@ -52,6 +53,7 @@
           <span>Stock Entries</span>
         </a>
       </li>
+
       <li class="nav-section-title">OPERATIONS</li>
       <li class="nav-item">
         <a class="nav-link {% if request.endpoint in ['adjustments','add_adjustment'] %}active{% endif %}"
@@ -60,6 +62,32 @@
           <span>Weight Adjustments</span>
         </a>
       </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.endpoint in ['dispatches','add_dispatch'] %}active{% endif %}"
+           href="{{ url_for('dispatches') }}">
+          <i class="bi bi-truck"></i>
+          <span>Dispatches</span>
+        </a>
+      </li>
+
+      <li class="nav-section-title">CLIENTS</li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.endpoint in ['clients','add_client','client_detail'] %}active{% endif %}"
+           href="{{ url_for('clients') }}">
+          <i class="bi bi-building"></i>
+          <span>Clients</span>
+        </a>
+      </li>
+
+      <li class="nav-section-title">PLANNING</li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.endpoint in ['requirements','add_requirement'] %}active{% endif %}"
+           href="{{ url_for('requirements') }}">
+          <i class="bi bi-clipboard-check"></i>
+          <span>Stock Requirements</span>
+        </a>
+      </li>
+
       <li class="nav-section-title">ANALYTICS</li>
       <li class="nav-item">
         <a class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}"
@@ -68,6 +96,17 @@
           <span>Reports</span>
         </a>
       </li>
+
+      {% if session.get('role') == 'admin' %}
+      <li class="nav-section-title">ADMIN</li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.endpoint in ['users','add_user'] %}active{% endif %}"
+           href="{{ url_for('users') }}">
+          <i class="bi bi-people-fill"></i>
+          <span>User Management</span>
+        </a>
+      </li>
+      {% endif %}
     </ul>
   </nav>
 

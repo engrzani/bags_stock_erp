@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block title %}Add Requirement — Bags Stock ERP{% endblock %}
+{% block breadcrumb %}<a href="{{ url_for('requirements') }}" class="breadcrumb-link">Requirements</a> / Add Requirement{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Add Stock Requirement</h1>
+    <p class="page-subtitle">Track upcoming or needed stock orders</p>
+  </div>
+  <a href="{{ url_for('requirements') }}" class="btn btn-outline-secondary btn-action">
+    <i class="bi bi-arrow-left me-2"></i>Back
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card-custom">
+      <div class="card-custom-header">
+        <h5 class="card-custom-title"><i class="bi bi-clipboard-plus me-2 text-primary"></i>Requirement Details</h5>
+      </div>
+      <div class="card-custom-body">
+        <form method="POST" action="{{ url_for('add_requirement') }}">
+          <div class="form-group-custom">
+            <label class="form-label-custom">Title / Description <span class="text-danger">*</span></label>
+            <input type="text" name="title" class="form-control-custom form-control" required
+                   placeholder="e.g. Need 200 bags of 50kg for next week">
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Bag Type</label>
+                <input type="text" name="bag_type" class="form-control-custom form-control"
+                       placeholder="e.g. PP Woven, Jute...">
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Weight per Bag (kg)</label>
+                <div class="weight-selector mb-2">
+                  {% for w in bag_weights %}
+                  <button type="button" class="weight-btn"
+                          onclick="setReqWeight({{ w }}, event)">{{ w }}</button>
+                  {% endfor %}
+                </div>
+                <input type="number" name="weight_per_bag" id="reqWeight"
+                       class="form-control-custom form-control" step="0.1" min="0.1" placeholder="kg (optional)">
+              </div>
+            </div>
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Quantity Required (bags) <span class="text-danger">*</span></label>
+                <input type="number" name="quantity_required" class="form-control-custom form-control"
+                       required min="1" placeholder="e.g. 500">
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Due Date</label>
+                <input type="date" name="due_date" class="form-control-custom form-control">
+              </div>
+            </div>
+          </div>
+          <div class="form-group-custom">
+            <label class="form-label-custom">Supplier</label>
+            <input type="text" name="supplier" class="form-control-custom form-control"
+                   placeholder="Expected supplier name (optional)">
+          </div>
+          <div class="form-group-custom">
+            <label class="form-label-custom">Notes</label>
+            <textarea name="notes" class="form-control-custom form-control" rows="2"
+                      placeholder="Additional details, priority, etc."></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-action">
+              <i class="bi bi-clipboard-check me-2"></i>Save Requirement
+            </button>
+            <a href="{{ url_for('requirements') }}" class="btn btn-light btn-action">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setReqWeight(w, e) {
+  document.getElementById('reqWeight').value = w;
+  document.querySelectorAll('.weight-btn').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+}
+</script>
+{% endblock %}

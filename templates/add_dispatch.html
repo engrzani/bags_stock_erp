@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% block title %}Add Dispatch — Bags Stock ERP{% endblock %}
+{% block breadcrumb %}<a href="{{ url_for('dispatches') }}" class="breadcrumb-link">Dispatches</a> / New Dispatch{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">New Stock Dispatch</h1>
+    <p class="page-subtitle">Record outgoing stock sent to a client</p>
+  </div>
+  <a href="{{ url_for('dispatches') }}" class="btn btn-outline-secondary btn-action">
+    <i class="bi bi-arrow-left me-2"></i>Back
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card-custom">
+      <div class="card-custom-header">
+        <h5 class="card-custom-title"><i class="bi bi-truck me-2 text-primary"></i>Dispatch Details</h5>
+      </div>
+      <div class="card-custom-body">
+        <form method="POST" action="{{ url_for('add_dispatch') }}">
+          <div class="form-group-custom">
+            <label class="form-label-custom">Client <span class="text-danger">*</span></label>
+            <select name="client_id" class="form-select form-control-custom" required>
+              <option value="">— Select Client —</option>
+              {% for c in clients %}
+              <option value="{{ c.id }}">{{ c.name }}{% if c.city %} ({{ c.city }}){% endif %}</option>
+              {% endfor %}
+            </select>
+            <span class="form-hint">
+              <a href="{{ url_for('add_client') }}">+ Add new client</a>
+            </span>
+          </div>
+
+          <div class="form-group-custom">
+            <label class="form-label-custom">Stock Entry (optional)</label>
+            <select name="entry_id" class="form-select form-control-custom" id="entrySelect">
+              <option value="">— No linked entry (manual dispatch) —</option>
+              {% for e in entries %}
+              <option value="{{ e.id }}" data-weight="{{ e.current_weight }}" data-available="{{ e.available_bags }}">
+                Lot {{ e.lot.lot_number }} | {{ e.bag_type }} | {{ e.current_weight }}kg | {{ e.available_bags }} bags available
+              </option>
+              {% endfor %}
+            </select>
+            <span class="form-hint">Link to a stock entry to automatically deduct bags from inventory.</span>
+          </div>
+
+          <div id="availableInfo" class="info-banner mb-3" style="display:none;">
+            <div class="info-banner-icon"><i class="bi bi-info-circle-fill"></i></div>
+            <div class="info-banner-text">
+              Available bags: <strong id="availableBags">—</strong>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Bags to Dispatch <span class="text-danger">*</span></label>
+                <input type="number" name="bags_dispatched" id="bagsInput" class="form-control-custom form-control"
+                       required min="1" placeholder="e.g. 50">
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Weight per Bag (kg) <span class="text-danger">*</span></label>
+                <div class="weight-selector mb-2">
+                  {% for w in bag_weights %}
+                  <button type="button" class="weight-btn" onclick="setDispatchWeight({{ w }})">{{ w }}</button>
+                  {% endfor %}
+                </div>
+                <input type="number" name="weight_per_bag" id="dispatchWeight" class="form-control-custom form-control"
+                       step="0.1" min="0.1" required placeholder="kg">
+              </div>
+            </div>
+          </div>
+
+          <!-- Total preview -->
+          <div class="calc-preview" id="dispatchCalc" style="display:none;">
+            <div class="calc-row">
+              <span>Bags dispatched</span>
+              <strong id="calcBags">—</strong>
+            </div>
+            <div class="calc-row">
+              <span>Weight per bag</span>
+              <strong id="calcWeight">—</strong>
+            </div>
+            <div class="calc-row total-row">
+              <span>Total weight</span>
+              <strong id="calcTotal">—</strong>
+            </div>
+          </div>
+
+          <div class="form-group-custom">
+            <label class="form-label-custom">Dispatch Date <span class="text-danger">*</span></label>
+            <input type="date" name="date_dispatched" class="form-control-custom form-control"
+                   value="{{ today }}" required>
+          </div>
+          <div class="form-group-custom">
+            <label class="form-label-custom">Notes</label>
+            <textarea name="notes" class="form-control-custom form-control" rows="2"
+                      placeholder="Vehicle no, driver, reference..."></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-action">
+              <i class="bi bi-truck me-2"></i>Record Dispatch
+            </button>
+            <a href="{{ url_for('dispatches') }}" class="btn btn-light btn-action">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const entrySelect = document.getElementById('entrySelect');
+const bagsInput = document.getElementById('bagsInput');
+const weightInput = document.getElementById('dispatchWeight');
+
+entrySelect.addEventListener('change', function() {
+  const opt = this.options[this.selectedIndex];
+  const avail = opt.dataset.available;
+  const weight = opt.dataset.weight;
+  if (avail !== undefined) {
+    document.getElementById('availableInfo').style.display = 'flex';
+    document.getElementById('availableBags').textContent = avail + ' bags';
+    bagsInput.max = avail;
+    if (weight) { weightInput.value = weight; setDispatchWeight(weight); }
+  } else {
+    document.getElementById('availableInfo').style.display = 'none';
+    bagsInput.removeAttribute('max');
+  }
+  updateCalc();
+});
+
+function setDispatchWeight(w) {
+  weightInput.value = w;
+  document.querySelectorAll('.weight-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  updateCalc();
+}
+
+[bagsInput, weightInput].forEach(el => el.addEventListener('input', updateCalc));
+
+function updateCalc() {
+  const bags = parseInt(bagsInput.value) || 0;
+  const weight = parseFloat(weightInput.value) || 0;
+  if (bags > 0 && weight > 0) {
+    document.getElementById('dispatchCalc').style.display = 'flex';
+    document.getElementById('calcBags').textContent = bags.toLocaleString() + ' bags';
+    document.getElementById('calcWeight').textContent = weight + ' kg';
+    document.getElementById('calcTotal').textContent = (bags * weight).toFixed(1) + ' kg';
+  } else {
+    document.getElementById('dispatchCalc').style.display = 'none';
+  }
+}
+</script>
+{% endblock %}

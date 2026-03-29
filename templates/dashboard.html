@@ -50,25 +50,25 @@
   </div>
   <div class="col-xl-3 col-md-6">
     <div class="kpi-card kpi-orange">
-      <div class="kpi-icon"><i class="bi bi-collection-fill"></i></div>
+      <div class="kpi-icon"><i class="bi bi-truck"></i></div>
       <div class="kpi-body">
-        <div class="kpi-value">{{ total_lots }}</div>
-        <div class="kpi-label">Total Lots</div>
+        <div class="kpi-value">{{ "{:,}".format(total_dispatched) }}</div>
+        <div class="kpi-label">Bags Dispatched</div>
       </div>
       <div class="kpi-footer">
-        <i class="bi bi-layers me-1"></i>Active Lots
+        <i class="bi bi-building me-1"></i>{{ total_clients }} Clients
       </div>
     </div>
   </div>
   <div class="col-xl-3 col-md-6">
     <div class="kpi-card kpi-purple">
-      <div class="kpi-icon"><i class="bi bi-arrow-left-right"></i></div>
+      <div class="kpi-icon"><i class="bi bi-clipboard-check"></i></div>
       <div class="kpi-body">
-        <div class="kpi-value">{{ total_adjustments }}</div>
-        <div class="kpi-label">Adjustments Done</div>
+        <div class="kpi-value">{{ pending_requirements }}</div>
+        <div class="kpi-label">Pending Requirements</div>
       </div>
       <div class="kpi-footer">
-        <i class="bi bi-check-circle me-1"></i>Weight Changes
+        <i class="bi bi-collection me-1"></i>{{ total_lots }} Lots | {{ total_adjustments }} Adj.
       </div>
     </div>
   </div>
