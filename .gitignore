@@ -8,3 +8,4 @@ instance/
 *.jpg
 *.png
 start.bat
+.vercel
