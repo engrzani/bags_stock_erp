@@ -5,6 +5,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from models import db, Lot, StockEntry, WeightAdjustment, User, Client, StockDispatch, StockRequirement
 from datetime import datetime, date
 from sqlalchemy import func
+from sqlalchemy.pool import NullPool
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'bags-erp-secret-2026')
@@ -24,12 +25,10 @@ if 'channel_binding' in database_url:
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# PostgreSQL SSL + connection pool settings for serverless
+# Serverless-safe pool config for PostgreSQL (Neon/Vercel)
 if database_url.startswith('postgresql'):
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-        'connect_args': {'sslmode': 'require'}
+        'poolclass': NullPool,
     }
 
 db.init_app(app)
