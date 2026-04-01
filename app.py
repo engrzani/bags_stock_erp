@@ -42,21 +42,18 @@ db.init_app(app)
 BAG_WEIGHTS = [20.0, 24.5, 25.0, 40.0, 49.0, 50.0]
 
 with app.app_context():
-    try:
-        db.create_all()
-        # Create default admin if no users exist
-        if User.query.count() == 0:
-            admin = User(
-                username=os.environ.get('ADMIN_USERNAME', 'admin'),
-                full_name='Administrator',
-                role='admin',
-                is_active=True
-            )
-            admin.set_password(os.environ.get('ADMIN_PASSWORD', 'admin123'))
-            db.session.add(admin)
-            db.session.commit()
-    except Exception as e:
-        print(f'DB init error: {e}')
+    db.create_all()
+    # Create default admin if no users exist
+    if User.query.count() == 0:
+        admin = User(
+            username=os.environ.get('ADMIN_USERNAME', 'admin'),
+            full_name='Administrator',
+            role='admin',
+            is_active=True
+        )
+        admin.set_password(os.environ.get('ADMIN_PASSWORD', 'admin123'))
+        db.session.add(admin)
+        db.session.commit()
 
 
 # ─────────────────────────── AUTH ───────────────────────────
