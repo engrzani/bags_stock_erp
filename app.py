@@ -18,10 +18,13 @@ if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
 if database_url.startswith('postgresql'):
-    # Remove channel_binding param (not supported by psycopg2)
+    # Remove params not supported by psycopg2 (channel_binding etc.)
     parsed = urllib.parse.urlparse(database_url)
     params = urllib.parse.parse_qs(parsed.query)
     params.pop('channel_binding', None)
+    # Keep sslmode=require in URL only — do NOT duplicate in connect_args
+    if 'sslmode' not in params:
+        params['sslmode'] = ['require']
     new_query = urllib.parse.urlencode({k: v[0] for k, v in params.items()})
     database_url = urllib.parse.urlunparse(parsed._replace(query=new_query))
 
@@ -31,7 +34,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 if database_url.startswith('postgresql'):
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'poolclass': NullPool,
-        'connect_args': {'sslmode': 'require'},
+        # sslmode is already in the URL — do not add connect_args to avoid conflict
     }
 
 db.init_app(app)
