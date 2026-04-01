@@ -2,7 +2,7 @@ import os
 import urllib.parse
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
-from models import db, Lot, StockEntry, WeightAdjustment, User, Client, StockDispatch, StockRequirement
+from models import db, Lot, StockEntry, WeightAdjustment, User, Client, StockDispatch, StockRequirement, ClientPayment
 from datetime import datetime, date
 from sqlalchemy import func
 from sqlalchemy.pool import NullPool
@@ -11,7 +11,8 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'bags-erp-secret-2026')
 
 # Use DATABASE_URL env var in production (PostgreSQL), fallback to SQLite locally
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///bags_stock.db')
+_sqlite_path = '/tmp/bags_stock.db' if os.path.isdir('/tmp') else 'bags_stock.db'
+database_url = os.environ.get('DATABASE_URL', f'sqlite:///{_sqlite_path}')
 # Fix older postgres:// URLs
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
@@ -462,7 +463,9 @@ def add_client():
         address = request.form.get('address', '').strip()
         notes = request.form.get('notes', '').strip()
         client = Client(name=name, contact_person=contact_person,
-                        phone=phone, city=city, address=address, notes=notes)
+                        phone=phone, city=city, address=address, notes=notes,
+                        opening_balance_bags=int(request.form.get('opening_balance_bags', 0) or 0),
+                        opening_balance_amount=float(request.form.get('opening_balance_amount', 0) or 0))
         db.session.add(client)
         db.session.commit()
         flash(f'Client "{name}" added successfully!', 'success')
@@ -474,8 +477,61 @@ def add_client():
 @login_required
 def client_detail(client_id):
     client = Client.query.get_or_404(client_id)
-    dispatches = StockDispatch.query.filter_by(client_id=client_id).order_by(StockDispatch.date_dispatched.desc()).all()
-    return render_template('client_detail.html', client=client, dispatches=dispatches)
+    dispatches = StockDispatch.query.filter_by(client_id=client_id).order_by(StockDispatch.date_dispatched.asc()).all()
+    payments = ClientPayment.query.filter_by(client_id=client_id).order_by(ClientPayment.date_paid.asc()).all()
+
+    # Build combined ledger sorted by date
+    ledger = []
+    running_balance = client.opening_balance_amount or 0.0
+
+    # Opening balance entry
+    if client.opening_balance_bags or client.opening_balance_amount:
+        ledger.append({
+            'type': 'opening',
+            'date': None,
+            'description': f"Opening Balance — {client.opening_balance_bags} بورے",
+            'bags': client.opening_balance_bags,
+            'amount': client.opening_balance_amount,
+            'payment': 0,
+            'balance': running_balance,
+        })
+
+    # Merge dispatches and payments by date
+    events = []
+    for d in dispatches:
+        events.append(('dispatch', d.date_dispatched, d))
+    for p in payments:
+        events.append(('payment', p.date_paid, p))
+    events.sort(key=lambda x: x[1])
+
+    for ev_type, ev_date, ev_obj in events:
+        if ev_type == 'dispatch':
+            running_balance += ev_obj.total_amount
+            ledger.append({
+                'type': 'dispatch',
+                'date': ev_date,
+                'description': f"{ev_obj.bags_dispatched} بورے × {ev_obj.weight_per_bag}kg" + (f" — {ev_obj.transporter}" if ev_obj.transporter else ""),
+                'bags': ev_obj.bags_dispatched,
+                'amount': ev_obj.total_amount,
+                'payment': 0,
+                'balance': round(running_balance, 2),
+                'obj': ev_obj,
+            })
+        else:
+            running_balance -= ev_obj.amount
+            ledger.append({
+                'type': 'payment',
+                'date': ev_date,
+                'description': ev_obj.notes or "ادائیگی",
+                'bags': 0,
+                'amount': 0,
+                'payment': ev_obj.amount,
+                'balance': round(running_balance, 2),
+                'obj': ev_obj,
+            })
+
+    return render_template('client_detail.html', client=client, dispatches=dispatches,
+                           payments=payments, ledger=ledger, today=date.today().isoformat())
 
 
 @app.route('/clients/<int:client_id>/delete', methods=['POST'])
@@ -488,6 +544,58 @@ def delete_client(client_id):
     return redirect(url_for('clients'))
 
 
+@app.route('/clients/<int:client_id>/edit', methods=['GET', 'POST'])
+@manager_required
+def edit_client(client_id):
+    client = Client.query.get_or_404(client_id)
+    if request.method == 'POST':
+        client.name = request.form['name'].strip()
+        client.contact_person = request.form.get('contact_person', '').strip()
+        client.phone = request.form.get('phone', '').strip()
+        client.city = request.form.get('city', '').strip()
+        client.address = request.form.get('address', '').strip()
+        client.notes = request.form.get('notes', '').strip()
+        client.opening_balance_bags = int(request.form.get('opening_balance_bags', 0) or 0)
+        client.opening_balance_amount = float(request.form.get('opening_balance_amount', 0) or 0)
+        db.session.commit()
+        flash(f'Client "{client.name}" updated.', 'success')
+        return redirect(url_for('client_detail', client_id=client_id))
+    return render_template('edit_client.html', client=client)
+
+
+@app.route('/clients/<int:client_id>/add-payment', methods=['POST'])
+@manager_required
+def add_payment(client_id):
+    client = Client.query.get_or_404(client_id)
+    amount = float(request.form.get('amount', 0) or 0)
+    date_str = request.form.get('date_paid', '')
+    notes = request.form.get('notes', '').strip()
+    if amount <= 0:
+        flash('Amount must be greater than 0.', 'danger')
+        return redirect(url_for('client_detail', client_id=client_id))
+    payment = ClientPayment(
+        client_id=client_id,
+        amount=amount,
+        date_paid=datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today(),
+        notes=notes
+    )
+    db.session.add(payment)
+    db.session.commit()
+    flash(f'Payment of Rs {amount:,.0f} recorded for {client.name}.', 'success')
+    return redirect(url_for('client_detail', client_id=client_id))
+
+
+@app.route('/clients/payment/<int:payment_id>/delete', methods=['POST'])
+@admin_required
+def delete_payment(payment_id):
+    payment = ClientPayment.query.get_or_404(payment_id)
+    client_id = payment.client_id
+    db.session.delete(payment)
+    db.session.commit()
+    flash('Payment record deleted.', 'warning')
+    return redirect(url_for('client_detail', client_id=client_id))
+
+
 # ─────────────────────────── DISPATCHES ───────────────────────────
 @app.route('/dispatches')
 @login_required
@@ -495,8 +603,9 @@ def dispatches():
     all_dispatches = StockDispatch.query.order_by(StockDispatch.date_dispatched.desc()).all()
     total_bags = sum(d.bags_dispatched for d in all_dispatches)
     total_weight = round(sum(d.total_weight for d in all_dispatches), 2)
+    total_amount = round(sum(d.total_amount for d in all_dispatches), 2)
     return render_template('dispatches.html', dispatches=all_dispatches,
-                           total_bags=total_bags, total_weight=total_weight)
+                           total_bags=total_bags, total_weight=total_weight, total_amount=total_amount)
 
 
 @app.route('/dispatches/add', methods=['GET', 'POST'])
@@ -509,6 +618,8 @@ def add_dispatch():
         entry_id_val = request.form.get('entry_id', '').strip()
         bags_dispatched = int(request.form['bags_dispatched'])
         weight_per_bag = float(request.form['weight_per_bag'])
+        rate_per_bag = float(request.form.get('rate_per_bag', 0) or 0)
+        transporter = request.form.get('transporter', '').strip()
         date_str = request.form['date_dispatched']
         notes = request.form.get('notes', '').strip()
 
@@ -527,6 +638,8 @@ def add_dispatch():
             entry_id=entry_id,
             bags_dispatched=bags_dispatched,
             weight_per_bag=weight_per_bag,
+            rate_per_bag=rate_per_bag,
+            transporter=transporter,
             date_dispatched=datetime.strptime(date_str, '%Y-%m-%d').date(),
             notes=notes
         )
