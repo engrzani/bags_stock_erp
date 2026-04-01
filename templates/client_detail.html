@@ -1,17 +1,23 @@
 {% extends 'base.html' %}
-{% block title %}{{ client.name }} — Bags Stock ERP{% endblock %}
+{% block title %}{{ client.name }} — کھاتہ{% endblock %}
 {% block breadcrumb %}<a href="{{ url_for('clients') }}" class="breadcrumb-link">Clients</a> / {{ client.name }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div>
-    <h1 class="page-title"><i class="bi bi-building me-2 text-primary"></i>{{ client.name }}</h1>
-    <p class="page-subtitle">Client dispatch history and details</p>
+    <h1 class="page-title"><i class="bi bi-journal-text me-2 text-primary"></i>{{ client.name }}</h1>
+    <p class="page-subtitle">کھاتہ بنام — Client Account Ledger</p>
   </div>
   <div class="page-actions">
     {% if session.get('role') in ['admin', 'manager'] %}
-    <a href="{{ url_for('add_dispatch') }}" class="btn btn-primary btn-action">
+    <a href="{{ url_for('add_dispatch') }}?client_id={{ client.id }}" class="btn btn-primary btn-action">
       <i class="bi bi-truck me-2"></i>New Dispatch
+    </a>
+    <button class="btn btn-success btn-action" data-bs-toggle="modal" data-bs-target="#paymentModal">
+      <i class="bi bi-cash-coin me-2"></i>ادائیگی درج کریں
+    </button>
+    <a href="{{ url_for('edit_client', client_id=client.id) }}" class="btn btn-outline-secondary btn-action">
+      <i class="bi bi-pencil me-2"></i>Edit
     </a>
     {% endif %}
     <a href="{{ url_for('clients') }}" class="btn btn-outline-secondary btn-action">
@@ -20,39 +26,56 @@
   </div>
 </div>
 
-<!-- Client Info -->
+<!-- KPI Summary Row -->
 <div class="row g-3 mb-4">
-  <div class="col-md-3">
+  <div class="col-6 col-md-3">
     <div class="mini-kpi">
       <div class="mini-kpi-icon bg-blue-soft"><i class="bi bi-bag text-primary"></i></div>
       <div>
         <div class="mini-kpi-value">{{ "{:,}".format(client.total_bags_received) }}</div>
-        <div class="mini-kpi-label">Total Bags Received</div>
+        <div class="mini-kpi-label">کل بورے</div>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
+  <div class="col-6 col-md-3">
     <div class="mini-kpi">
-      <div class="mini-kpi-icon bg-green-soft"><i class="bi bi-speedometer text-success"></i></div>
+      <div class="mini-kpi-icon bg-orange-soft"><i class="bi bi-currency-exchange text-warning"></i></div>
       <div>
-        <div class="mini-kpi-value">{{ "{:,.1f}".format(client.total_weight_received) }}</div>
-        <div class="mini-kpi-label">Total Weight (kg)</div>
+        <div class="mini-kpi-value">Rs {{ "{:,.0f}".format(client.total_amount_due) }}</div>
+        <div class="mini-kpi-label">کل رقم واجب</div>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
+  <div class="col-6 col-md-3">
     <div class="mini-kpi">
-      <div class="mini-kpi-icon bg-orange-soft"><i class="bi bi-list-ul text-warning"></i></div>
+      <div class="mini-kpi-icon bg-green-soft"><i class="bi bi-cash-stack text-success"></i></div>
       <div>
-        <div class="mini-kpi-value">{{ dispatches | length }}</div>
-        <div class="mini-kpi-label">Total Dispatches</div>
+        <div class="mini-kpi-value">Rs {{ "{:,.0f}".format(client.total_payments_received) }}</div>
+        <div class="mini-kpi-label">کل ادائیگی</div>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
+  <div class="col-6 col-md-3">
+    <div class="mini-kpi {% if client.balance_due > 0 %}border border-danger{% endif %}">
+      <div class="mini-kpi-icon {% if client.balance_due > 0 %}bg-danger{% else %}bg-green-soft{% endif %}" style="{% if client.balance_due > 0 %}opacity:.85{% endif %}">
+        <i class="bi bi-{% if client.balance_due > 0 %}exclamation-triangle text-white{% else %}check-circle text-success{% endif %}"></i>
+      </div>
+      <div>
+        <div class="mini-kpi-value {% if client.balance_due > 0 %}text-danger{% else %}text-success{% endif %}">
+          Rs {{ "{:,.0f}".format(client.balance_due) }}
+        </div>
+        <div class="mini-kpi-label">بقایا (Balance Due)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Contact Info + Opening Balance -->
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
     <div class="card-custom p-3">
       <div style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Contact Info</div>
-      <div class="mt-1" style="font-size:13.5px;">
+      <div class="mt-2" style="font-size:13.5px;">
         {% if client.contact_person %}<div><i class="bi bi-person me-1 text-muted"></i>{{ client.contact_person }}</div>{% endif %}
         {% if client.phone %}<div><i class="bi bi-telephone me-1 text-muted"></i>{{ client.phone }}</div>{% endif %}
         {% if client.city %}<div><i class="bi bi-geo-alt me-1 text-muted"></i>{{ client.city }}</div>{% endif %}
@@ -62,56 +85,160 @@
       </div>
     </div>
   </div>
+  <div class="col-md-6">
+    <div class="card-custom p-3">
+      <div style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">ابتدائی بیلنس (Opening Balance)</div>
+      <div class="mt-2" style="font-size:13.5px;">
+        <div><i class="bi bi-bag me-1 text-primary"></i><strong>{{ "{:,}".format(client.opening_balance_bags or 0) }}</strong> بورے (Bags B/F)</div>
+        <div><i class="bi bi-cash me-1 text-warning"></i><strong>Rs {{ "{:,.0f}".format(client.opening_balance_amount or 0) }}</strong> لانٹا (Amount B/F)</div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- Dispatch History -->
+<!-- KHATA LEDGER TABLE -->
 <div class="card-custom">
-  <div class="card-custom-header">
-    <h5 class="card-custom-title"><i class="bi bi-truck me-2 text-primary"></i>Dispatch History</h5>
+  <div class="card-custom-header d-flex justify-content-between align-items-center">
+    <h5 class="card-custom-title mb-0"><i class="bi bi-journal-text me-2 text-primary"></i>کھاتہ — Account Ledger</h5>
+    <span class="badge bg-secondary">{{ ledger | length }} entries</span>
   </div>
   <div class="card-custom-body p-0">
-    {% if dispatches %}
+    {% if ledger %}
     <div class="table-responsive">
-      <table class="table table-custom mb-0">
+      <table class="table table-custom mb-0" style="font-size:13.5px;">
         <thead>
           <tr>
-            <th>#</th>
-            <th>Date</th>
-            <th>Bags</th>
-            <th>Weight/Bag (kg)</th>
-            <th class="text-end">Total Weight (kg)</th>
-            <th>Notes</th>
+            <th>تاریخ</th>
+            <th>تفصیل</th>
+            <th class="text-center">بورے</th>
+            <th class="text-end" style="color:#ef4444;">جمع (رقم)</th>
+            <th class="text-end" style="color:#22c55e;">ادائیگی</th>
+            <th class="text-end">بقایا</th>
             {% if session.get('role') == 'admin' %}<th class="text-center">Del</th>{% endif %}
           </tr>
         </thead>
         <tbody>
-          {% for d in dispatches %}
-          <tr>
-            <td class="text-muted">{{ loop.index }}</td>
-            <td>{{ d.date_dispatched.strftime('%d %b %Y') }}</td>
-            <td><span class="fw-semibold">{{ "{:,}".format(d.bags_dispatched) }}</span></td>
-            <td><span class="weight-badge">{{ d.weight_per_bag }} kg</span></td>
-            <td class="text-end fw-semibold">{{ "{:,.1f}".format(d.total_weight) }}</td>
-            <td class="text-muted" style="font-size:12px;">{{ d.notes or '—' }}</td>
+          {% for row in ledger %}
+          <tr class="{% if row.type == 'opening' %}table-light fw-semibold{% elif row.type == 'payment' %}table-success bg-opacity-25{% endif %}">
+            <td class="text-muted" style="white-space:nowrap;">
+              {% if row.date %}{{ row.date.strftime('%d/%m/%y') }}{% else %}<em>B/F</em>{% endif %}
+            </td>
+            <td>
+              {% if row.type == 'opening' %}
+                <span class="badge bg-secondary me-1">B/F</span>
+              {% elif row.type == 'dispatch' %}
+                <span class="badge bg-primary me-1" style="font-size:10px;">Dispatch</span>
+                {% if row.obj.transporter %}<span class="text-muted me-1" style="font-size:12px;">{{ row.obj.transporter }}</span>{% endif %}
+              {% else %}
+                <span class="badge bg-success me-1" style="font-size:10px;">ادائیگی</span>
+              {% endif %}
+              {{ row.description }}
+            </td>
+            <td class="text-center">
+              {% if row.bags %}
+                <span class="fw-semibold">{{ "{:,}".format(row.bags) }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-end" style="color:#ef4444;">
+              {% if row.amount %}
+                <span class="fw-semibold">{{ "{:,.0f}".format(row.amount) }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-end" style="color:#22c55e;">
+              {% if row.payment %}
+                <span class="fw-semibold">{{ "{:,.0f}".format(row.payment) }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-end">
+              <span class="fw-bold {% if row.balance > 0 %}text-danger{% elif row.balance < 0 %}text-success{% else %}text-muted{% endif %}">
+                {{ "{:,.0f}".format(row.balance) }}
+              </span>
+            </td>
             {% if session.get('role') == 'admin' %}
             <td class="text-center">
-              <form method="POST" action="{{ url_for('delete_dispatch', dispatch_id=d.id) }}"
+              {% if row.type == 'dispatch' %}
+              <form method="POST" action="{{ url_for('delete_dispatch', dispatch_id=row.obj.id) }}"
                     onsubmit="return confirm('Delete this dispatch?')">
                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
               </form>
+              {% elif row.type == 'payment' %}
+              <form method="POST" action="{{ url_for('delete_payment', payment_id=row.obj.id) }}"
+                    onsubmit="return confirm('Delete this payment?')">
+                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+              </form>
+              {% endif %}
             </td>
             {% endif %}
           </tr>
           {% endfor %}
         </tbody>
+        <tfoot class="table-dark">
+          <tr>
+            <td colspan="3" class="fw-bold">جملہ</td>
+            <td class="text-end fw-bold" style="color:#fca5a5;">Rs {{ "{:,.0f}".format(client.total_amount_due) }}</td>
+            <td class="text-end fw-bold" style="color:#86efac;">Rs {{ "{:,.0f}".format(client.total_payments_received) }}</td>
+            <td class="text-end fw-bold {% if client.balance_due > 0 %}text-danger{% else %}text-success{% endif %}">
+              Rs {{ "{:,.0f}".format(client.balance_due) }}
+            </td>
+            {% if session.get('role') == 'admin' %}<td></td>{% endif %}
+          </tr>
+        </tfoot>
       </table>
     </div>
     {% else %}
     <div class="empty-state-sm">
-      <i class="bi bi-truck"></i>
-      <p>No dispatches recorded yet for this client.</p>
+      <i class="bi bi-journal-text"></i>
+      <p>کوئی اندراج نہیں — No entries yet.</p>
     </div>
     {% endif %}
   </div>
 </div>
+
+<!-- Payment Modal -->
+{% if session.get('role') in ['admin', 'manager'] %}
+<div class="modal fade" id="paymentModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-cash-coin me-2 text-success"></i>ادائیگی درج کریں — Record Payment</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('add_payment', client_id=client.id) }}">
+        <div class="modal-body">
+          <div class="form-group-custom">
+            <label class="form-label-custom">رقم (Amount Rs) <span class="text-danger">*</span></label>
+            <input type="number" name="amount" class="form-control-custom form-control"
+                   step="0.01" min="1" required placeholder="e.g. 50000">
+          </div>
+          <div class="form-group-custom">
+            <label class="form-label-custom">تاریخ (Date) <span class="text-danger">*</span></label>
+            <input type="date" name="date_paid" class="form-control-custom form-control"
+                   value="{{ today }}" required>
+          </div>
+          <div class="form-group-custom">
+            <label class="form-label-custom">نوٹ (Notes)</label>
+            <input type="text" name="notes" class="form-control-custom form-control"
+                   placeholder="e.g. نقد، چیک نمبر...">
+          </div>
+          <div class="info-banner">
+            <div class="info-banner-icon"><i class="bi bi-info-circle-fill"></i></div>
+            <div class="info-banner-text">
+              موجودہ بقایا: <strong class="{% if client.balance_due > 0 %}text-danger{% endif %}">
+                Rs {{ "{:,.0f}".format(client.balance_due) }}
+              </strong>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-success">
+            <i class="bi bi-check-lg me-1"></i>درج کریں
+          </button>
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
+

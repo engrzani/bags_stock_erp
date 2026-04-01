@@ -97,6 +97,37 @@
             <input type="date" name="date_dispatched" class="form-control-custom form-control"
                    value="{{ today }}" required>
           </div>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="form-group-custom">
+                <label class="form-label-custom">ریٹ فی بوری — Rate per Bag (Rs)</label>
+                <input type="number" name="rate_per_bag" id="rateInput" class="form-control-custom form-control"
+                       step="0.01" min="0" placeholder="e.g. 1200">
+                <span class="form-hint">قیمت داخل کریں تو کل رقم خود بخود حساب ہوگی</span>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group-custom">
+                <label class="form-label-custom">ٹرانسپورٹر / گاڑی والا</label>
+                <input type="text" name="transporter" class="form-control-custom form-control"
+                       placeholder="e.g. فاران مارکیٹ، منظور صاحب">
+              </div>
+            </div>
+          </div>
+
+          <!-- Amount preview -->
+          <div class="calc-preview" id="amountCalc" style="display:none;">
+            <div class="calc-row">
+              <span>Bags × Rate</span>
+              <strong id="calcAmountDetail">—</strong>
+            </div>
+            <div class="calc-row total-row">
+              <span>کل رقم (Total Amount)</span>
+              <strong id="calcAmount">—</strong>
+            </div>
+          </div>
+
           <div class="form-group-custom">
             <label class="form-label-custom">Notes</label>
             <textarea name="notes" class="form-control-custom form-control" rows="2"
@@ -121,6 +152,7 @@
 const entrySelect = document.getElementById('entrySelect');
 const bagsInput = document.getElementById('bagsInput');
 const weightInput = document.getElementById('dispatchWeight');
+const rateInput = document.getElementById('rateInput');
 
 entrySelect.addEventListener('change', function() {
   const opt = this.options[this.selectedIndex];
@@ -145,11 +177,12 @@ function setDispatchWeight(w) {
   updateCalc();
 }
 
-[bagsInput, weightInput].forEach(el => el.addEventListener('input', updateCalc));
+[bagsInput, weightInput, rateInput].forEach(el => el.addEventListener('input', updateCalc));
 
 function updateCalc() {
   const bags = parseInt(bagsInput.value) || 0;
   const weight = parseFloat(weightInput.value) || 0;
+  const rate = parseFloat(rateInput.value) || 0;
   if (bags > 0 && weight > 0) {
     document.getElementById('dispatchCalc').style.display = 'flex';
     document.getElementById('calcBags').textContent = bags.toLocaleString() + ' bags';
@@ -157,6 +190,13 @@ function updateCalc() {
     document.getElementById('calcTotal').textContent = (bags * weight).toFixed(1) + ' kg';
   } else {
     document.getElementById('dispatchCalc').style.display = 'none';
+  }
+  if (bags > 0 && rate > 0) {
+    document.getElementById('amountCalc').style.display = 'flex';
+    document.getElementById('calcAmountDetail').textContent = bags.toLocaleString() + ' × Rs ' + rate.toLocaleString();
+    document.getElementById('calcAmount').textContent = 'Rs ' + (bags * rate).toLocaleString('en-PK', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  } else {
+    document.getElementById('amountCalc').style.display = 'none';
   }
 }
 </script>

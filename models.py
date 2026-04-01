@@ -43,14 +43,31 @@ class Client(db.Model):
     notes = db.Column(db.Text, default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     dispatches = db.relationship('StockDispatch', backref='client', lazy=True)
+    payments = db.relationship('ClientPayment', backref='client', lazy=True, cascade='all, delete-orphan')
+
+    opening_balance_bags = db.Column(db.Integer, default=0)        # بورے (B/F bags)
+    opening_balance_amount = db.Column(db.Float, default=0.0)     # لانٹا (B/F amount in Rs)
 
     @property
     def total_bags_received(self):
-        return sum(d.bags_dispatched for d in self.dispatches)
+        return self.opening_balance_bags + sum(d.bags_dispatched for d in self.dispatches)
 
     @property
     def total_weight_received(self):
         return round(sum(d.total_weight for d in self.dispatches), 2)
+
+    @property
+    def total_amount_due(self):
+        """Total amount due = opening balance + all dispatches amount"""
+        return round(self.opening_balance_amount + sum(d.total_amount for d in self.dispatches), 2)
+
+    @property
+    def total_payments_received(self):
+        return round(sum(p.amount for p in self.payments), 2)
+
+    @property
+    def balance_due(self):
+        return round(self.total_amount_due - self.total_payments_received, 2)
 
 
 # ─────────────────────────── LOT ───────────────────────────
@@ -128,6 +145,8 @@ class StockDispatch(db.Model):
     entry_id = db.Column(db.Integer, db.ForeignKey('stock_entries.id'), nullable=True)
     bags_dispatched = db.Column(db.Integer, nullable=False)
     weight_per_bag = db.Column(db.Float, nullable=False)
+    rate_per_bag = db.Column(db.Float, default=0.0)    # قیمت فی بوری (Rs per bag)
+    transporter = db.Column(db.String(100), default='')  # گاڑی والا / ٹرانسپورٹر
     date_dispatched = db.Column(db.Date, nullable=False)
     notes = db.Column(db.Text, default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -135,6 +154,10 @@ class StockDispatch(db.Model):
     @property
     def total_weight(self):
         return round(self.bags_dispatched * self.weight_per_bag, 2)
+
+    @property
+    def total_amount(self):
+        return round(self.bags_dispatched * (self.rate_per_bag or 0), 2)
 
 
 # ─────────────────────────── STOCK REQUIREMENT ───────────────────────────
@@ -158,4 +181,15 @@ class StockRequirement(db.Model):
     @property
     def status_label(self):
         return {'pending': 'Pending', 'in_progress': 'In Progress', 'fulfilled': 'Fulfilled', 'cancelled': 'Cancelled'}.get(self.status, self.status)
+
+
+# ─────────────────────────── CLIENT PAYMENT ───────────────────────────
+class ClientPayment(db.Model):
+    __tablename__ = 'client_payments'
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)           # ادا کردہ رقم (Rs)
+    date_paid = db.Column(db.Date, nullable=False)
+    notes = db.Column(db.String(200), default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

@@ -34,12 +34,21 @@
       </div>
     </div>
   </div>
-  <div class="col-md-4">
+  <div class="col-md-2">
     <div class="mini-kpi">
       <div class="mini-kpi-icon bg-purple-soft"><i class="bi bi-truck text-purple"></i></div>
       <div>
         <div class="mini-kpi-value">{{ dispatches | length }}</div>
         <div class="mini-kpi-label">Dispatch Records</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="mini-kpi">
+      <div class="mini-kpi-icon bg-orange-soft"><i class="bi bi-currency-exchange text-warning"></i></div>
+      <div>
+        <div class="mini-kpi-value">Rs {{ "{:,.0f}".format(total_amount) }}</div>
+        <div class="mini-kpi-label">کل رقم</div>
       </div>
     </div>
   </div>
@@ -66,7 +75,10 @@
             <th>Client</th>
             <th class="text-center">Bags</th>
             <th>Weight/Bag</th>
+            <th>ریٹ (Rs)</th>
             <th class="text-end">Total Weight (kg)</th>
+            <th class="text-end">رقم (Rs)</th>
+            <th>ٹرانسپورٹر</th>
             <th>Notes</th>
             {% if session.get('role') == 'admin' %}<th class="text-center">Del</th>{% endif %}
           </tr>
@@ -83,7 +95,10 @@
             </td>
             <td class="text-center fw-semibold">{{ "{:,}".format(d.bags_dispatched) }}</td>
             <td><span class="weight-badge">{{ d.weight_per_bag }} kg</span></td>
+            <td class="text-muted">{% if d.rate_per_bag %}{{ "{:,.0f}".format(d.rate_per_bag) }}{% else %}—{% endif %}</td>
             <td class="text-end fw-semibold">{{ "{:,.1f}".format(d.total_weight) }}</td>
+            <td class="text-end fw-semibold">{% if d.total_amount %}{{ "{:,.0f}".format(d.total_amount) }}{% else %}—{% endif %}</td>
+            <td class="text-muted" style="font-size:12px;">{{ d.transporter or '—' }}</td>
             <td class="text-muted" style="font-size:12px;">{{ d.notes or '—' }}</td>
             {% if session.get('role') == 'admin' %}
             <td class="text-center">
