@@ -16,13 +16,16 @@ database_url = os.environ.get('DATABASE_URL', f'sqlite:///{_sqlite_path}')
 # Fix older postgres:// URLs
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
-# Remove channel_binding param — not supported by psycopg2
-if 'channel_binding' in database_url:
+
+if database_url.startswith('postgresql'):
+    # Parse and clean URL — remove unsupported params, switch to pg8000 driver
     parsed = urllib.parse.urlparse(database_url)
     params = urllib.parse.parse_qs(parsed.query)
-    params.pop('channel_binding', None)
+    params.pop('channel_binding', None)  # not supported by pg8000
     new_query = urllib.parse.urlencode({k: v[0] for k, v in params.items()})
-    database_url = urllib.parse.urlunparse(parsed._replace(query=new_query))
+    cleaned = urllib.parse.urlunparse(parsed._replace(query=new_query))
+    # Use pg8000 (pure Python driver — works on Vercel)
+    database_url = cleaned.replace('postgresql://', 'postgresql+pg8000://', 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
